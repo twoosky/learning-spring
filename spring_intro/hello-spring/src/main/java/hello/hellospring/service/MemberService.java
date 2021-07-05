@@ -9,12 +9,18 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
-@Service
 public class MemberService {
 
     private final MemberRepository memberRepository;
 
+    /* setter 주입 : 사용자가 메소드를 호출해 값을 변경할 수 있어 좋지 않음.
     @Autowired
+    public void setMemberRepository(MemberRepository memberRepository) {
+        this.memberRepository = memberRepository;
+    }
+     */
+
+    // 생성자 주입
     public MemberService(MemberRepository memberRepository) {
         this.memberRepository = memberRepository;
     }
