@@ -31,6 +31,8 @@ public class JdbcMemberRepository implements MemberRepository{
 
             pstmt.setString(1, member.getName());
 
+            // DB에 실제 query(insert into ... )가 날아감.
+            // key값(ID)을 반환해줌.
             pstmt.executeUpdate();
             rs = pstmt.getGeneratedKeys();
 
@@ -48,14 +50,18 @@ public class JdbcMemberRepository implements MemberRepository{
     @Override
     public Optional<Member> findById(Long id) {
         String sql = "select * from member where id = ?";
+
         Connection conn = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
+
         try {
             conn = getConnection();
             pstmt = conn.prepareStatement(sql);
             pstmt.setLong(1, id);
+
             rs = pstmt.executeQuery();
+
             if(rs.next()) {
                 Member member = new Member();
                 member.setId(rs.getLong("id"));
@@ -64,6 +70,7 @@ public class JdbcMemberRepository implements MemberRepository{
             } else {
                 return Optional.empty();
             }
+
         } catch (Exception e) {
             throw new IllegalStateException(e);
         } finally {
@@ -73,20 +80,27 @@ public class JdbcMemberRepository implements MemberRepository{
     @Override
     public List<Member> findAll() {
         String sql = "select * from member";Connection conn = null;
+
         PreparedStatement pstmt = null;
+
         ResultSet rs = null;
+
         try {
             conn = getConnection();
             pstmt = conn.prepareStatement(sql);
             rs = pstmt.executeQuery();
+
             List<Member> members = new ArrayList<>();
+
             while(rs.next()) {
                 Member member = new Member();
                 member.setId(rs.getLong("id"));
                 member.setName(rs.getString("name"));
                 members.add(member);
             }
+
             return members;
+
         } catch (Exception e) {
             throw new IllegalStateException(e);
         } finally {
