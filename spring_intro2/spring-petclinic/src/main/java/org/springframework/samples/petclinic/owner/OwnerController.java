@@ -45,9 +45,12 @@ class OwnerController {
 
 	private VisitRepository visits;
 
-	public OwnerController(OwnerRepository clinicService, VisitRepository visits) {
+	private PetRepository pet;
+
+	public OwnerController(OwnerRepository clinicService, VisitRepository visits, PetRepository pet) {
 		this.owners = clinicService;
 		this.visits = visits;
+		this.pet = pet;
 	}
 
 	@InitBinder
@@ -83,18 +86,17 @@ class OwnerController {
 	public String processFindForm(Owner owner, BindingResult result, Map<String, Object> model) {
 
 		// allow parameterless GET request for /owners to return all records
-		if (owner.getFirstName() == null) {
-			owner.setFirstName(""); // empty string signifies broadest possible search
+		if (owner.getLastName() == null) {
+			owner.setLastName(""); // empty string signifies broadest possible search
 		}
 
-		// find owners by first name
-		Collection<Owner> results = this.owners.findByFirstName(owner.getFirstName());
+		// find owners by last name
+		Collection<Owner> results = this.owners.findByLastName(owner.getLastName());
 		if (results.isEmpty()) {
 			// no owners found
-			result.rejectValue("firstName", "notFound", "not found");
+			result.rejectValue("lastName", "notFound", "not found");
 			return "owners/findOwners";
 		}
-
 		else if (results.size() == 1) {
 			// 1 owner found
 			owner = results.iterator().next();
