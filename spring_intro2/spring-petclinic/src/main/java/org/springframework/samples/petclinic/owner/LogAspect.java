@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StopWatch;
 
 @Component
-@Aspect      // @LogExecutionTime Annotation이 있는 곳에 적용
+@Aspect      //  @LogExecutionTime Annotation이 있는 곳에 적용
 public class LogAspect {
 
 	Logger logger = LoggerFactory.getLogger(LogAspect.class);
