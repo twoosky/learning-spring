@@ -37,17 +37,18 @@ Spring Boot RESTful
   * `@AllArgsConstructor`: 클래스의 멤버변수의 값을 setting해주는 생성자 자동 생성
   * `@NoArgsConstructor`: 매개변수 없는 default 생성자 자동 생성
 * DispatcherServlet
-  * 클라이언트의 모든 요청을 한곳으로 받아서 처리
-  * servlet container에서 http 프로토콜을 통해 들어오는 모든 요청값을 처리하기 위해서 프레젠테이션 계층의 제일 앞에 놓여지며 중앙 집중식의 요청 처리를 하기 위한 front controller로서 사용됨. 일종의 GateWay 역할
+  * 클라이언트의 모든 요청을 한곳으로 받아서 처리하는 GateWay 역할
+  * servlet container에서 http 프로토콜을 통해 들어오는 모든 요청값을 처리하기 위해서 프레젠테이션 계층의 제일 앞에 놓여지며 중앙 집중식의 요청 처리를 하기 위한 front controller로서 사용됨. 
+  * 동작 과정
+    * 모든 사용자의 Request가 Dispatcher Servlet에 전달
+    * Dispatcher Servlet가 사용자 요청을 HandlerMapping에 전달 
+    * Controller에 처리 요청 
+    * 처리된 결과값을 Spring MVC에서는 Model형태로 반환해줌. 
+    * ViewResolver가 page 형식에 따라 page 생성 
+    * page값에 Model을 포함시켜 전달
   
-  <img src="https://media.vlpt.us/images/ehdrms2034/post/e602b868-b975-4d1b-97ed-a0d3e2d9f4c4/image.png" width="50%" height="40%" title="px(픽셀) 크기 설정" alt="DispatcherServlet"></img>
+  <img src="https://media.vlpt.us/images/ehdrms2034/post/e602b868-b975-4d1b-97ed-a0d3e2d9f4c4/image.png" width="45%" height="35%" title="px(픽셀) 크기 설정" alt="DispatcherServlet"></img>
   
-  1. 모든 사용자의 Request가 Dispatcher Servlet에 전달
-  2. Dispatcher Servlet가 사용자 요청을 HandlerMapping에 전달 
-  3. Controller에 처리 요청 
-  4. 처리된 결과값을 Spring MVC에서는 Model형태로 반환해줌. 
-  5. ViewResolver가 page 형식에 따라 page 생성 
-  6. page값에 Model을 포함시켜 전달
 * RestController
   * `@RestController`: `@Controller`와 `@ResponseBody`가 결합된 어노테이션
   * View를 갖지 않는 REST Data(JSON/XML)를 반환하는 controller
