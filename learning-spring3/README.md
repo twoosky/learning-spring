@@ -45,10 +45,8 @@ Spring Boot RESTful
     * Controller에 처리 요청 
     * 처리된 결과값을 Spring MVC에서는 Model형태로 반환해줌. 
     * ViewResolver가 page 형식에 따라 page 생성 
-    * page값에 Model을 포함시켜 전달
-  
-  <img src="https://media.vlpt.us/images/ehdrms2034/post/e602b868-b975-4d1b-97ed-a0d3e2d9f4c4/image.png" width="45%" height="35%" title="px(픽셀) 크기 설정" alt="DispatcherServlet"></img>
-  
+    * page값에 Model을 포함시켜 전달  
+  <img src="https://media.vlpt.us/images/ehdrms2034/post/e602b868-b975-4d1b-97ed-a0d3e2d9f4c4/image.png" width="45%" height="35%" title="px(픽셀) 크기 설정" alt="DispatcherServlet"></img>  
 * RestController
   * `@RestController`: `@Controller`와 `@ResponseBody`가 결합된 어노테이션
   * View를 갖지 않는 REST Data(JSON/XML)를 반환하는 controller
@@ -58,3 +56,30 @@ Spring Boot RESTful
   * Mapping 어노테이션의 URI인자에 {변수명}을 설정해 URI에 가변데이터를 사용하는 것
   * `@PathVariable`: 핸들러 메소드의 파라미터를 통해 가변 데이터 받음.
   * 가변 데이터는 클라이언트에 의해 설정됨.
+ 
+User Service API
+===
+* GET HTTP Method
+  * `@RestController` 어노테이션이 있는 컨트롤러 클래스에서 `@GetMapping` 어노테이션을 통해 GET HTTP Method 구현
+* POST HTTP Method
+  * `@RestController` 어노테이션이 있는 컨트롤러 클래스에서 `@PostMapping` 어노테이션을 통해 POST HTTP Method 구현
+  * `@RequestBody`: post/put HTTP Method에서 클라이언트로부터 JSON/XML 같은 오브젝트 형태의 데이터를 받기 위해 매개변수 형태로 전달인자와 함께 핸들러 함수에 정의
+  * 같은 url을 사용하더라도 HTTP Method 방식에 따라 다르게 동작
+* HTTP 상태 반환 제어
+  * `ServletUriComponentsBuilder` 클래스를 통해 HTTP 상태코드, uri 변경 가능
+  * 핸들러 함수에서 생성한 URI를 ResponseEntity에 담아 반환
+  * `ResponseEntity`: 직접 HTTP body, headers, status code를 세팅하여 반환할 수 있는 클래스
+  * 사용자를 추가할 때 id값은 서버에서 자동 생성하므로 클라이언트 측에서 id값을 알 수 없음. id값을 알기 위해선 서버에 다시 요청 해야됨. 따라서 POST Method의 실행결과로 생성된 id값을 확인 가능한 uri 반환해 네트워크 트래픽 감소
+* HTTP Status Code 제어
+  * 서버가 HTTP 요청을 처리할 수 없는 경우에 사용할 예외 처리 클래스를 생성하고 `@ResponseStatus` 어노테이션을 통해 Status code 전달함으로써 예외 처리
+  * HTTP Status Code
+    * 2XX -> OK
+    * 4XX -> Client Error
+    * 5XX -> Server Error
+* AOP 사용 HTTP Status Code 제어
+  * `@RestController`, `@ControllerAdvice` 어노테이션을 추가하고 ResponseEntityExceptionHandler을 상속받은 예외 처리 클래스를 생성해 모든 컨트롤러가 실행되기 전 해당 예외 처리 클래스가 실행될 수 있도록 AOP활용
+  * `@ExceptionHandler` 어노테이션을 통해 해당 Exception handler가 처리할 Exception 종류 지정
+  * `@ControllerAdvice`: @Controller나 @RestController에서 발생한 예외를 한 곳에서 관리하고 처리할 수 있게 도와주는 어노테이션
+  * `@ExceptionHandler`: @Controller, @RestController가 적용된 Bean내에서 발생하는 예외를 잡아서 하나의 메서드에서 처리해주는 어노테이션
+* DELETE HTTP Method
+  * `@RestController` 어노테이션이 있는 컨트롤러 클래스에서 `@DeleteMapping` 어노테이션을 통해 DELETE HTTP Method 구현
