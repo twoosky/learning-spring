@@ -83,3 +83,62 @@ User Service API
   * `@ExceptionHandler`: @Controller, @RestController가 적용된 Bean내에서 발생하는 예외를 잡아서 하나의 메서드에서 처리해주는 어노테이션
 * DELETE HTTP Method
   * `@RestController` 어노테이션이 있는 컨트롤러 클래스에서 `@DeleteMapping` 어노테이션을 통해 DELETE HTTP Method 구현
+
+RESTful Service
+===
+* Validation API
+  * javax의 validation API와 Hibernate validation API를 사용해 유효성 검사 가능
+  * 도메인 클래스에서 각 필드 데이터에 데이터의 범위를 지정할 수 있는 `@Size`, 과거 값만 유효한 데이터로 설정하는 `@Past`와 같은 validation 어노테이션을 추가해 유효 조건 설정
+  * 컨트롤러 클래스 내 HTTP POST Method에서 파라미터 형태로 `@Valid` 어노테이션을 추가하면 입력 받는 객체에 대해 유효성 검사 가능
+* 다국어 처리
+  * 다국어 처리에 필요한 bean을 SpringBootApplication class에 등록해서 스프링부트가 초기화될 때 메모리에 등록되도록 함.
+  * 구현 과정
+    * application.yml에 다음 코드 추가
+     ```
+      spring:
+         messages:
+            basename: messages
+     ```
+    * `basename: 파일이름`: 다국어 파일 이름 설정
+    * `resources/` 하위에 다국어 파일 생성
+    * 컨트롤러 클래스 내 다국어 처리 메소드에서 `@RequestHeader` 어노테이션을 통해 Accept-Language의 value에 해당하는 다국어 받아 사용
+* XML format
+  * client가 GET 요청 시 header에 'Accept'의 value로 `application/xml`를 보내면 json형식이 아닌 xml형식으로 response를 전송함.
+  * pom.xml에 다음 라이브러리를 추가하면 xml형식으로 응답 가능
+  ```
+  <dependency>
+    <groupId>com.fasterxml.jackson.dataformat</groupId>
+    <artifactId>jackson-dataformat-xml</artifactId>
+    <version>2.10.2</version>
+  </dependency>
+  ```
+* Filtering
+  * 도메인 클래스 내 특정한 필드 데이터를 외부에 노출시키지 않는 방법
+  * 방법1
+    * 도메인 클래스 각 필드에 `@JsonIgnore` 어노테이션을 추가해 해당 데이터 필드 노출 제어
+    * 도메인 클래스에 `@JsonIgnoreProperties` 어노테이션을 추가해 해당 데이터 필드 노출 제어
+      * ex) `@JsonIgnoreProperties(value={"password", "ssn"})`
+  * 방법2
+    1. 도메인 클래스에 `@JsonFilter("filter 명")` 어노테이션을 추가해 filter 명을 설정
+    2. 컨트롤러 클래스 내 API 핸들러 함수 안에서 `SimpleBeanPropertyFilter` 객체를 선언하고 해당 객체의  `filterOutAllExcept` 함수를 통해 필터링하지 않을 필드를 설정.
+    3. `FilterProvider` 객체를 `SimpleFilterProvider().addFilter("filter를 적용할 bean이름",)`하여 선언하고 `MappingJacsonValue` 객체에서 setFilters 함수를 통해 필터링 대상이 되는 bean 객체인 `FilterProvider` 객체를 적용시켜 반환해 필터링 할 수 있음.
+* Versioning
+  * URI
+    * 컨트롤러 클래스에서 각 메소드에 매핑되는 uri를 버전에 따라 구분해 API 제공
+    * `BeanUtils.copyProperties`: 스프링에서 기본으로 제공해주는 메소드로서 객체를 쉽고 간결하게 복사 가능
+    * ex) `@GetMapping("/v1/users/{id}")`
+  * Request Parameter
+    * uri 뒤에 request parameter값을 전달함으로써 버전에 따른 API 제공
+    * ex) `@GetMapping(value = "/users/{id}/", params = "version=1")`
+    * request: https://localhost:8088/admin/user/{id}/?version={version}
+  * header
+    * header값을 이용해 버전에 따른 API 제공
+    * ex) `@GetMapping(value = "/users/{id}/", headers="X-API-VERSION=1")`
+    * request: https://localhost:8088/admin/users/{id}
+    * header: X-API-VERSION={version}
+  * MIME type
+    * 이메일과 함께 전송되는 메일을 텍스트 문자로 전환해서 이메일 서버에 전달하기 위한 방법
+    * 최근에는 웹을 통해서 여러가지 파일을 전달하기 위해 사용되는 일종의 파일 지정 형식
+    * ex) `@GetMapping(value = "/users/{id}", produces = "application/vnd.company.appy1+json")`
+    * request: https://localhost:8088/admin/users/{id}
+    * header: Accept=application/vnd.company.appy{version}+json
