@@ -142,3 +142,87 @@ RESTful Service
     * ex) `@GetMapping(value = "/users/{id}", produces = "application/vnd.company.appy1+json")`
     * request: https://localhost:8088/admin/users/{id}
     * header: Accept=application/vnd.company.appy{version}+json
+
+Spring Boot API
+===
+* HATEOAS
+  * 현재 리소스와 연관된(호출 가능한) 자원 상태 정보를 제공
+  * 클라이언트가 서버로부터 어떠한 요청을 할 때, 요청에 필요한 URI를 응답에 포함시켜 반환
+  * `pom.xml`에 hateoas 라이브러리 추가
+  ```
+  <dependency>
+   <groupId>org.springframework.boot</groupId>
+   <artifactId>spring-boot-starter-hateoas</artifactId>
+  </dependency>
+  ```
+  * spring 2.1.8 버전 이하: `Resource`/'ControllerLInkBuilder` 사용
+  * spring 2.2 버전 이상: `EntityModel`/`WebMvcLinkBuilder` 사용
+* Swagger
+  * REST 웹 서비스에서 설계, 빌드, 문서화, 사용에 관련된 작업을 지원하는 오픈소스 프레임워크
+  * 서버로 요청되는 URL 리스트를 HTML화면으로 문서화 및 테스트 할 수 있는 라이브러리
+  * `pom.xml`에 dependency 추가
+  ```
+  <dependency>
+   <groupId>io.springfox</groupId>
+   <artifactId>springfox-boot-starter</artifactId>
+   <version>3.0.0</version>
+  </dependency>
+  ```
+  * http://localhost:8088/v2/api-docs: swagger file에 의해 만들어진 내용을 json 타입으로 나타냄
+  * http://localhost:8088/swagger-ui/: html 형태로 보여짐
+  * swagger의 documentation 커스터마이징
+    * `@Configuration`어노테이션을 통해 설정이라는 것을 명시하고 `@@EnableSwagger2`어노테이션을 통해 Swagger2 버전 활성화
+    * Swagger설정의 핵심이 되는 Bean인 Docket객체를 반환하는 메소드 생성, API 자체에 대한 스펙은 해당 컨트롤러에서 작성
+    * Docket에 apiInfo(), produces(), consumes() 등의 설정을 할당해 커스트마이징 할 수 있음
+    * 모델에서도 `@ApiModel`, `@ApiModelProperty` 어노테이션으로 모델/필드에 각각 설명을 추가해 커스터마이징 할 수 있음.
+* Actuator
+  * App의 상태를 모니터링하는 기능
+  * `pom.xml`에 dependency 추가
+  ```
+  <dependency>
+   <groupId>org.springframework.boot</groupId>
+   <artifactId>spring-boot-starter-actuator</artifactId>
+  </dependency>
+  ```
+* HAL Browser
+  * 어플리케이션의 부가적인 기능 부여
+  * API resource들 사이에서 일관적인 하이퍼링크를 제공하는 방식
+  * API 설계시 HAL을 도입하면 API 간에 쉽게 검색 가능
+  * HAL을 API Response message에 적용하면 message의 형식(json/xml)에 상관없이 api를 쉽게 사용할 수 있는 부가적인 정보(메타 정보)를 하이퍼링크 형식으로 간단하게 포함할 수 있게 됨.
+  * resource는 컴퓨터의 자원, 유저 정보를 변경, 수정, 추가한 작업을 의미, 이러한 resource를 외부에 공개하기 위해 RESTful 서비스를 사용함.
+  * 해당하는 요청 작업에 부가적으로 사용할 수 있는 또 다른 resource를 연결해서 보여주기 위해 html의 링크 즉, 하이퍼 텍스트 기능을 사용함.
+  * REST 자원을 표현하기 위한 자료구조를 그때 그때 생성하지 않더라도, HATEOAS 기능을 사용할 수 있음.
+    * HATEOAS를 사용하는 경우 HATEOAS 정보를 추가하기 위해 매번 link 객체를 생성함. 
+    * HAL은 필요한 resource를 매번 작업하지 않더라도 추가로 사용할 수 있는 link가 자동으로 설계됨. 
+  * `pom.xml`에 dependency 추가
+  ```
+  <dependency>
+   <groupId>org.springframework.data</groupId>
+   <artifactId>spring-data-rest-hal-browser</artifactId>
+   <version>3.3.2.RELEASE</version>
+  </dependency>
+  ```
+  * http://localhost:8088/browser/index.html 에서 API 리소스들 조회 가능
+* Security
+  * passward를 통한 사용자 인증 및 접근 권한 처리
+  * Spring Security
+    * `pom.xml`에 아래 dependency를 추가하면 passward가 자동 생성되고, 이를 통해 웹서비스 호출 시 접근 권한 처리
+    ```
+    <dependency>
+     <groupId>org.springframework.boot</groupId>
+     <artifactId>spring-boot-starter-security</artifactId>
+    </dependency>
+    ```
+  * Configuration
+    * ID, password를 개발자가 직접 지정해 접근 권한 처리
+    * `application.yml`에서 id, password 지정
+    ```
+    spring:
+     security:
+      user:
+       name: username
+       password: passw0rd
+    ```
+    * yml 파일에 id, password를 지정할 경우 변경할 때마다 서버를 재부팅해야됨. 따라서 DB에서 사용자 정보를 가져오는 방식으로 프로그램 구현 필요
+    * `WebSecurityConfigurerAdapter`를 상속받아 사용자가 정의한 인증 정보를 추가할 수 있고, 서버의 재부팅 없이 id, password 변경 가능
+    
