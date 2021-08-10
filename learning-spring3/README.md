@@ -220,9 +220,26 @@ Spring Boot API
     spring:
      security:
       user:
-       name: username
+       name: usernamepa
        password: passw0rd
     ```
     * yml 파일에 id, password를 지정할 경우 변경할 때마다 서버를 재부팅해야됨. 따라서 DB에서 사용자 정보를 가져오는 방식으로 프로그램 구현 필요
     * `WebSecurityConfigurerAdapter`를 상속받아 사용자가 정의한 인증 정보를 추가할 수 있고, 서버의 재부팅 없이 id, password 변경 가능
-    
+
+Java Persistence API
+===
+* JPA
+  * 자바 ORM 기술에 대한 API 표준 명세
+  * 자바 어플리케이션에서 관계형 데이터베이스를 사용하는 방식을 정의한 인터페이스(규약)
+  * EntityManager를 통해 CRUD 처리
+* Hibernate
+  * JPA의 구현체, 인터페이스를 직접 구현한 라이브러리
+  * ORM을 위한 라이브러리이고, EntityManager를 구현한 클래스 집합체
+* ORM(Object Relational Mapping)
+  * OOP(Object Oriented Programming)에서 쓰이는 객체라는 개념을 구현한 클래스와 RDB(Relational DataBase)에서 쓰이는 데이터인 테이블 자동으로 매핑(연결)하는 것을 의미
+  * ORM을 통해 객체 간의 관계를 바탕으로 SQL을 자동으로 생성하여 클래스와 테이블 간의 불일치 해결
+* Spring Data JPA
+  * Spring Module
+  * JPA를 추상화한 Repository 인터페이스 제공
+  * CRUD 관련된 공통 인터페이스 제공하기 때문에 데이터베이스 연동 어플리케이션 개발 수월
+  * `JPA`는 기술명세, `Hibernate`는 JPA의 구현체, `Spring Data JPA`는 JPA를 쓰기 편하게 만들어놓은 모듈
