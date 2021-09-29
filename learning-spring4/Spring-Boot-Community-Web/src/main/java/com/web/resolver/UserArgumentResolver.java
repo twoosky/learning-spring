@@ -29,6 +29,7 @@ import static com.web.domain.enums.SocialType.FACEBOOK;
 import static com.web.domain.enums.SocialType.GOOGLE;
 import static com.web.domain.enums.SocialType.KAKAO;
 
+// 액세스 토큰값을 사용해서 User 정보를 가져오는 로직
 @Component
 public class UserArgumentResolver implements HandlerMethodArgumentResolver {
 
@@ -53,7 +54,7 @@ public class UserArgumentResolver implements HandlerMethodArgumentResolver {
     private User getUser(User user, HttpSession session) {
         if (user == null) {
             try {
-                OAuth2AuthenticationToken authentication = (OAuth2AuthenticationToken) SecurityContextHolder.getContext().getAuthentication();
+                OAuth2AuthenticationToken authentication = (OAuth2AuthenticationToken) SecurityContextHolder.getContext().getAuthentication();   // SecurityContextHolder 에서 OAuth2AuthenticationToken 을 가져옵니다.
                 Map<String, Object> map = authentication.getPrincipal().getAttributes();
                 User convertUser = convertUser(authentication.getAuthorizedClientRegistrationId(), map);
 
