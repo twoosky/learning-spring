@@ -74,9 +74,21 @@
   * 스프링은 다형성을 극대화해서 이용할 수 있게 도와준다.
   * 스프링에서 이야기하는 제어의 역전(IoC), 의존관계 주입(DI)은 다형성을 활용해서 역할과 구현을 편리하게 다룰 수 있도록 지원한다.
 
-
-
-
+**좋은 객체 지향 설계의 5가지 원칙(SOLID)**
+* 객체 지향 설계의 5가지 원칙(SOLID)
+  * `SRP`: 단일 책임 원칙 (Single responsibility principle)
+  * `OCP`: 개방-폐쇄 원칙 (Open/Closed principle)
+  * `LSP`: 리스코프 치환 원칙 (Liskov substitution principle)
+  * `ISP`: 인터페이스 분리 원칙 (Interface segregation principle)
+  * `DIP`: 의존관계 역전 원칙 (Dependency inversion principle)
+* SRP 단일 책임 원칙
+  * 한 클래스는 하나의 책임만 가져야 한다.
+  * 하나의 책임의 중요한 기준은 `변경`이다. 변경이 있을 때 파급 효과가 적으면 단일 책임 원칙을 잘 따른 것이다.
+* OCP 개방-폐쇄 원칙
+  * 소프트웨어 요소는 `확장에는 열려`있으나, `변경에는 닫혀`있어야 한다.
+  * 다형성을 활용해 인터페이스를 구현한 새로운 클래스를 만들어서 새로운 기능을 구현해보자.
+  * 다형성을 활용하면, 
+* 
 
 
 
