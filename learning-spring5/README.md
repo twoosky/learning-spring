@@ -166,6 +166,46 @@
   * 스프링 빈은 applicationContext.getBean() 메서드를 사용해 찾을 수 있다.
   * 이전에는 `AppConfig`를 사용해서 필요한 객체를 직접 조회했지만, 스프링 컨테이너를 통해 필요한 스프링 빈(객체)을 찾을 수 있다.
 
+**스프링 컨테이너와 스프링 빈**
+* 스프링 컨테이너 생성
+  ```java
+  ApplicationContext applicationContext = new AnnotationConfigApplicationContext(AppConfig.class);
+  ```
+  * `ApplicationContext`를 스프링 컨테이너라 한다.
+  * `ApplicationContext`는 인터페이스이고, `AnnotationConfigApplicationContext`는 구현체 중 하나이다.
+  * 스프링 컨테이너는 XML을 기반으로 만들 수 있고, 위와 같이 애노테이션 기반의 자바 설정 클래스로 만들 수 있다
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
