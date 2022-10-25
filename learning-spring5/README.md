@@ -200,11 +200,16 @@
 * 스프링 빈 동일한 타입이 둘 이상 조회
   * 타입으로 조회 시 같은 타입의 스프링 빈이 둘 이상이면 오류가 발생한다. 이때는 빈 이름을 지정하자. 
   * `ApplicationContext.getBeansOfType()`을 사용해 해당 타입의 모든 빈을 조회할 수도 있다.
+* 스프링 빈 조회 - 상속관계
+  * 부모 타입으로 빈을 조회하면, 자식 타입도 함께 조회된다.
+  * 모든 자바 객체의 최고 부모인 `Object` 타입으로 조회하면, 모든 스프링 빈을 조회한다.
+    * 자바는 모든 class는 extend Object가 자동으로 들어가 있으므로
 
 
 > intellij 단축키
-> * `command+shift+enter`: 구문 자동완성 후 다음 줄로 넘어감 
-> * `psvm`: public static void main[] 자동 생성
+> * `command+shift+enter`: 구문 자동완성 후 다음 줄로 넘어감
+> * `ctrl+alt+v`: 변수 추출하기
+> * `psvm`: public static void main(String[] args) 자동 생성
 > * `soutv`: 변수에 대한 System.out.println() 자동 생성
 > * `soutm`: 메소드에 대한 System.out.println() 자동 생성
 
