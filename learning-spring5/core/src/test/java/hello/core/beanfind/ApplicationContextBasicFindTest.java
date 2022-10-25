@@ -16,6 +16,8 @@ public class ApplicationContextBasicFindTest {
 
     AnnotationConfigApplicationContext ac = new AnnotationConfigApplicationContext(AppConfig.class);
 
+    // [comment] 실제 테스트에선 System.out.println() 사용하면 안됨
+    // [comment] Assertions을 통해 시스템이 검증하도록 테스트 구현
     @Test
     @DisplayName("애플리케이션 빈 조회")
     void findBeanByName() {
@@ -44,7 +46,8 @@ public class ApplicationContextBasicFindTest {
     void findBeanByName2() {
         // [comment] 빈 객체 반환 타입인 인터페이스가 아닌 구체 타입으로도 빈 조회 가능
         // - 그러나, 구현이 아닌 역할(인터페이스)에 의존해야 하므로 구체 타입으로 빈 조회 하는 것은 좋지 않음!
-        // - 해당 빈의 반환값이(인스턴스) 다른 구현체가 될 수도 있으므로 구체 타입으로 빈 조회 시 유연성이 떨어진다.
+        // - 반환값이(인스턴스) 다른 구현체가 될 수도 있다. 이때 인터페이스 타입으로 Bean을 조회하면 코드를 변경하지 않아도 되지만,
+        //   구체 타입으로 조회하면 코드를 변경해야 함 즉, 유연성이 떨어진다.
         MemberServiceImpl memberService = ac.getBean(MemberServiceImpl.class);
         System.out.println("memberService = " + memberService);
         System.out.println("memberService.getClass() = " + memberService.getClass());
