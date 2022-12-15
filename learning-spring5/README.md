@@ -204,8 +204,30 @@
   * 부모 타입으로 빈을 조회하면, 자식 타입도 함께 조회된다.
   * 모든 자바 객체의 최고 부모인 `Object` 타입으로 조회하면, 모든 스프링 빈을 조회한다.
     * 자바는 모든 class는 extend Object가 자동으로 들어가 있으므로
-* 스프링 빈
 
+**BeanFactory와 ApplicationContext**  
+<img src="https://user-images.githubusercontent.com/50009240/207924346-937342c5-bc8e-4e1e-a687-e218c018e5a7.png" width="320" height="300">
+
+* `BeanFactory` (interface)
+  * 스프링 컨테이너의 최상위 인터페이스
+  * 스프링 빈을 관리하고 조회하는 역할을 담당한다.
+  * *getBean()* 을 제공한다.
+* `ApplicationContext` (interface)
+  * BeanFactory 기능을 모두 상속받아서 제공한다.
+  * BeanFactory뿐만 아니라, 여러 인터페이스도 상속받는다.
+    * MessageSource : 국제화 처리를 위한 인터페이스
+    * EnvironmentCapable : 환경 변수(로컬, 개발, 운영등을 구분해 처리)
+    * ApplicationEventPublisher : 이벤트를 발행하고 구독하는 모델 지원
+    * ResourceLoader : 파일,클래스패스,외부 등에서 리소스 편리하게 조회
+> BeanFactory를 직접 사용할 일은 거의 없다. 부가기능이 포함된 ApplicationContext를 사용한다.  
+> BeanFactory나 ApplicationContext를 스프링 컨테이너라 한다. 
+
+**다양한 설정 형식 지원 - 자바 코드, XML**
+* 애노테이션 기반 자바 코드 설정 사용
+  * `AnnotationConfigApplicationContext` 클래스를 사용하면서 자바 코드로된 설정 정보를 넘긴다.
+  * ex) new AnnotationConfigApplicationContext(AppConfig.class)
+* XML 설정
+  * `GenericXmlApplicationContext` 클래스를 사용하면서 xml 설정 파일을 넘김 
 > intellij 단축키
 > * `command+shift+enter`: 구문 자동완성 후 다음 줄로 넘어감
 > * `ctrl+alt+v`: 변수 추출하기
