@@ -1,11 +1,10 @@
-package hello.core.singleton;
+package hello.core.singleton.state;
 
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 public class StateFulServiceTest {
 
@@ -27,7 +26,7 @@ public class StateFulServiceTest {
         Assertions.assertThat(stateFulService1.getPrice()).isEqualTo(20000);
     }
 
-    // TestConfig 클래스에는 왜 @Configuration 어노테이션을 안붙여줘도 되지?
+    // [comment] TestConfig 클래스에는 왜 @Configuration 어노테이션을 안붙여줘도 될까?
     // - 위에서 ApplicationContext ac = new AnnotationConfigApplicationContext(TestConfig.class); 을 통해
     //   스프링 컨테이너에 TestConfig 클래스를 직접 스프링 빈으로 등록했기 때문이다.
     // - 직접 등록하지 않는 경우 구성 정보 클래스에 @Configuration 을 붙여야 한다.

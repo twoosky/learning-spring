@@ -1,4 +1,4 @@
-package hello.core.singleton;
+package hello.core.singleton.state;
 
 public class StateFulService {
 

@@ -41,4 +41,8 @@ public class OrderServiceImpl implements OrderService {
         int disCountPrice = discountPolicy.disCount(member, itemPrice);
         return new Order(memberId, itemName, itemPrice, disCountPrice);
     }
+
+    public MemberRepository getMemberRepository() {
+        return memberRepository;
+    }
 }
