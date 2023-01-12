@@ -29,8 +29,7 @@ public class StateFulServiceTest {
     // [comment] TestConfig 클래스에는 왜 @Configuration 어노테이션을 안붙여줘도 될까?
     // - 위에서 ApplicationContext ac = new AnnotationConfigApplicationContext(TestConfig.class); 을 통해
     //   스프링 컨테이너에 TestConfig 클래스를 직접 스프링 빈으로 등록했기 때문이다.
-    // - 직접 등록하지 않는 경우 구성 정보 클래스에 @Configuration 을 붙여야 한다.
-    //   스프링 컨테이너는 @Configuration이 붙은 클래스를 찾아 스프링 빈으로 등록한다.
+    // - 대신 @Bean만 사용하는 경우 싱글톤이 보장되지 않음.
     static class TestConfig {
         @Bean
         public StateFulService stateFulService() {

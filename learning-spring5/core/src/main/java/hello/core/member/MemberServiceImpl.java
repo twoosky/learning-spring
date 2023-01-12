@@ -1,11 +1,17 @@
 package hello.core.member;
 
-// 구현체가 하나만 있는 경우 interface명 뒤에 Impl을 붙여 많이 쓴다.
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+@Component
 public class MemberServiceImpl implements MemberService {
 
     // 아래의 경우 의존 관계가 인터페이스 뿐만 아니라 구현체까지 모두 의존하는 문제점이 있다. -> DIP 위반
     private final MemberRepository memberRepository;
 
+    // [comment] 의존관계를 자동으로 주입해주는 어노테이션
+    // - applicationContext.getBean(MemberRepository.class) 와 같은 의미
+    @Autowired
     public MemberServiceImpl(MemberRepository memberRepository) {
         this.memberRepository = memberRepository;
     }

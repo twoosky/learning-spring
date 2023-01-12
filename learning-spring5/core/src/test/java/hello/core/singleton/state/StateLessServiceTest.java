@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
 public class StateLessServiceTest {
 
@@ -21,8 +22,8 @@ public class StateLessServiceTest {
         Assertions.assertThat(userAPrice).isEqualTo(10000);
     }
 
+    @Configuration
     static class TestConfig {
-
         @Bean
         public StateLessService stateLessService() {
             return new StateLessService();
