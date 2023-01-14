@@ -20,6 +20,8 @@ public class OrderServiceImpl implements OrderService {
     // - OCP 준수: 구현 객체를 변경하는 경우 OrderServiceImpl의 코드는 변경하지 않아도 된다.
     @Autowired
     public OrderServiceImpl(MemberRepository memberRepository, DiscountPolicy discountPolicy) {
+        System.out.println("memberRepository = " + memberRepository);
+        System.out.println("discountPolicy = " + discountPolicy);
         this.discountPolicy = discountPolicy;
         this.memberRepository = memberRepository;
     }
