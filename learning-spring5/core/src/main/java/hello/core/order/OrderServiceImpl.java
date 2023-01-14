@@ -5,10 +5,11 @@ import hello.core.member.Member;
 import hello.core.member.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 @Component
-@RequiredArgsConstructor  // final 붙은 필드에 대한 생성자 자동 생성 어노테이션 (lombok에 존재)
+// @RequiredArgsConstructor  // final 붙은 필드에 대한 생성자 자동 생성 어노테이션 (lombok에 존재)
 public class OrderServiceImpl implements OrderService {
 
     // [comment] final이 붙은 경우 변수 선언 시 할당하거나 생성자로 할당해줘야됨.
@@ -16,13 +17,12 @@ public class OrderServiceImpl implements OrderService {
     private final MemberRepository memberRepository;
     private final DiscountPolicy discountPolicy;
 
-    /* 1. 생성자 주입
+    // 1. 생성자 주입
     @Autowired
     public OrderServiceImpl(MemberRepository memberRepository, DiscountPolicy discountPolicy) {
         this.discountPolicy = discountPolicy;
         this.memberRepository = memberRepository;
     }
-     */
 
     /* 2. 수정자 주입
     @Autowired
