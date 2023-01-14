@@ -3,10 +3,12 @@ package hello.core.order;
 import hello.core.discount.DiscountPolicy;
 import hello.core.member.Member;
 import hello.core.member.MemberRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor  // final 붙은 필드에 대한 생성자 자동 생성 어노테이션 (lombok에 존재)
 public class OrderServiceImpl implements OrderService {
 
     // [comment] final이 붙은 경우 변수 선언 시 할당하거나 생성자로 할당해줘야됨.
@@ -14,18 +16,15 @@ public class OrderServiceImpl implements OrderService {
     private final MemberRepository memberRepository;
     private final DiscountPolicy discountPolicy;
 
-    // [comment] 생성자 주입
-    // - AppConfig에서 애플리케이션의 실제 동작에 필요한 구현 객체를 생성한다.
-    // - AppConfig는 생성한 객체 인스턴스의 참조(레퍼런스)를 생성자를 통해서 주입(연결) 해준다.
-    // - OCP 준수: 구현 객체를 변경하는 경우 OrderServiceImpl의 코드는 변경하지 않아도 된다.
+    /* 1. 생성자 주입
     @Autowired
     public OrderServiceImpl(MemberRepository memberRepository, DiscountPolicy discountPolicy) {
         this.discountPolicy = discountPolicy;
         this.memberRepository = memberRepository;
     }
+     */
 
-
-    /* 수정자 주입
+    /* 2. 수정자 주입
     @Autowired
     public void setMemberRepository(MemberRepository memberRepository) {
         this.memberRepository = memberRepository;
@@ -36,6 +35,7 @@ public class OrderServiceImpl implements OrderService {
         this.discountPolicy = discountPolicy;
     }
      */
+
 
     /*
      [comment] 아래 코드의 문제점
