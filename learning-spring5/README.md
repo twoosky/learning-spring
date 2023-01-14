@@ -298,12 +298,17 @@
 
 **탐색 위치와 기본 스캔 대상**
 * 탐색 위치
-  * `excludeFilters`: 스프링 빈 등록에서 제외할 클래스 지정 가능
   * `basePackages`: 탐색할 패키지의 시작 위치를 지정 가능. 이 패키지를 포함해서 하위 패키지를 모두 탐색
     * basePackages = {"hello.core", "hello.service"} 와 같이 여러 시작 위치를 지정할 수 도 있다.
   * `basePackClasses`: 지정한 클래스의 패키지를 탐색 시작 위치로 지정
   * 위 설정들을 지정하지 않으면(default), @ComponentScan이 붙은 설정 정보 클래스의 패키지가 시작 위치가 된다.
     * 설정 정보 클래스: AutoAppConfig.class ..
+  ```java
+  @ComponentScan(
+        basePackages = "hello.core",
+        basePackageClasses = AutoAppConfig.class
+  )
+  ```
   * `권장`: 패키지 위치를 지정하지 않고, 설정 정보 클래스의 위치를 프로젝트 최상단에 두자.  
     * 참고로, 스프링 부트의 대표 시작 정보인 @SpringBootApplication를 프로젝트 시작 루트 위치에 두는 것이 관례이다. 
     * 시작 설정 내부에도 @ComponentScan이 들어있다!
@@ -313,6 +318,40 @@
   * `@Service`: 스프링 비즈니스 로직에서 사용
   * `@Repository`: 스프링 데이터 접근 계층에서 사용, 스프링 데이터 접근 계층으로 인식하고 데이터 계층의 예외를 스프링 예외로 변환
   * `@Configuration`: 스프링 설정 정보에서 사용, 스프링 설정 정보로 인식하고 스프링 빈이 싱글톤을 유지하도록 추가 처리
+  
+**필터**
+* `incloudefilters`: 컴포넌트 스캔 대상을 추가로 지정
+* `excloudeFilters`: 컴포넌트 스캔에서 제외할 대상 지정
+```java
+@ComponentScan(
+            includeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = MyIncludeComponent.class),
+            excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = MyExcludeComponent.class)
+    )
+```
+* 필터 옵션
+  * ANNOTATION: 기본값, 애노테이션을 인식해서 동작
+  * ASSIGNABLE_TYPE: 지정한 타입과 자식 타입을 인식해서 동작
+  * ASPECTJ: AspectJ 패턴 사용
+  * REGEX: 정규 표현식
+  * CUSTOM: TypeFilter 라는 인터페이스를 구현해서 처리
+
+**중복 등록과 충돌**  
+* 컴포넌트 스캔에서 같은 빈 이름을 등록하면 어떻게 될까?
+* 자동 빈 등록 vs 자동 빈 등록
+  * 컴포넌트 스캔에 의해 자동으로 스프링 빈이 등록되는데, 그 이름이 같은 경우 *ConflictingBeanDefinitionException* 발생
+* 수등 빈 등록 vs 자동 빈 등록
+  * 스프링에서는 수등 빈 등록이 우선권을 갖으나, 스프링 부트에서는 수동 빈 등록과 자동 빈 등록이 충돌나면 오류가 발생한다. (우선권이 주어질 시 어려운 버그가 발생할 수 있으므로)
+  * 스프링 부트에서 프로퍼티에 spring.main.allow-bean-definition-overriding=true를 통해 수동 빈이 자동 빈을 오버라이딩하게도 설정 가능 
+
+
+
+
+
+
+
+
+
+
 
 > intellij 단축키
 > * `command+shift+enter`: 구문 자동완성 후 다음 줄로 넘어감
