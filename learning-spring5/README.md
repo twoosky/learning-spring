@@ -559,6 +559,120 @@ public OrderServiceImpl(MemberRepository memberRepository, @MainDiscountPolicy D
   * 비즈니스 로직 중에서 다형성을 적극 활용하는 경우 설정 정보(@Configuration)만 보고 한 눈에 파악하기 위한 수동 빈 등록을 고민해볼 수 있다.
   * 위 경우 수동 빈 등록 또는 자동 빈 등록 객체들을 특정 패키지에 같이 묶어두는게 좋다!
 
+## 빈 생명주기 콜백
+**빈 생명주기**  
+* 빈 생명 주기: 스프링에서 객체의 초기화 작업과 종료 작업을 처리할 때 사용하는 라이프 사이클
+* 스프링 빈 라이프사이클
+  * `객체 생성 -> 의존관계 주입`
+  * 스프링 빈은 객체를 생성하고, 의존관계 주입이 다 끝난 다음에야 필요한 데이터를 사용할 수 있는 준비가 완료된다.
+  * 초기화 작업은 의존관계 주입이 모두 완료되고 난 다음 호출해야 한다.
+  * 스프링은 의존관계 주입이 완료되면 스프링 빈에게 `콜백 메서드`를 통해 초기화 시점을 알려주는 기능이 있다.
+  * 스프링은 스프링 컨테이너가 종료되기 직전에 `소멸 콜백`을 준다. 따라서 안전하게 종료 가능
+* 스프링 빈의 이벤트 라이프사이클
+  * `스프링 컨테이너 생성` -> `스프링 빈 생성` -> `의존관계 주입` -> `초기화 콜백` -> `사용` -> `소멸전 콜백` -> `스프링 종료`
+> `TIP` 객체의 생성과 초기화를 분리하자!
+> * 생성자는 필수 정보(파라미터)를 받고, 메모리를 할당해서 객체를 생성하는 책임을 가진다.
+> * 초기화는 이렇게 생성된 값을 활용해서 외부 커넥션을 연결하는 등 무거운 동작을 수행한다.
+> * 따라서 객체 생성과 초기화를 분리하는 것이 유지보수 관점에서 좋다.
+
+**빈 생명주기 콜백 지원 방식**  
+1. 인터페이스(InitializingBean, DisposableBean)
+    * 외부 라이브러리에 적용할 수 없어 거의 사용하지 않는 방법이다.
+    * InitializingBean은 afterPropertiesSet() 메서드로 초기화 콜백 지원
+    * DisposableBean은 destroy() 메서드로 소멸 콜백 지원
+2. 설정 정보에 초기화 메서드, 종료 메서드 지정
+    * 설정 정보에 `@Bean(initMethod = "함수 이름", destroyMethod = "함수 이름")` 를 사용해 초기화, 소멸 메서드를 지정할 수 있다.
+    * 코드가 아니라 설정 정보를 사용하기 때문에 코드를 고칠 수 없는 라이브러리에도 초기화, 종료 메서드를 적용할 수 있다.
+    * @Bean의 destroyMethod 속성은 기본값이 `(inferred)` (추론)으로 등록되어 있다.
+    * 이 추론 기능은 close, shutdown 라는 이름의 메서드를 자동으로 호출해준다.
+    * 따라서 직접 스프링 빈으로 등록하면 종료 메서드는 따로 적어주지 않아도 잘 동작한다.
+3. 어노테이션 @PostConstruct, @PreDestory
+    * 스프링에서 권장하는 방법이다.
+    * 초기화 메서드에 @POstConstruct, 소멸 메서드에 @PreDestory 어노테이션을 붙이면 해당 시점에 자동 호출된다.
+    * javax.annotation에 존재하는 자바 표준으로 스프링에 의존적이지 않다.
+    * 외부 라이브러리를 초기화할 수 없다는 단점이 있다. 외부 라이브러리 초기화, 종료 시에는 @Bean의 기능을 사용하자
+    ```java
+    public class NetworkClient {
+        private String url;
+
+        public NetworkClient() {
+            System.out.println("생성자 호출, url = " + url);
+        }
+    
+        public void setUrl(String url) {
+            this.url = url;
+        }
+
+        public void connect() {
+            System.out.println("connect: " + url);
+        }
+
+        public void call(String message) {
+            System.out.println("Call " + url + " message = " + message);
+        }
+
+        public void disconnect() {
+            System.out.println("close " + url);
+        }
+
+        @PostConstruct
+        public void init() {
+            System.out.println("NetworkClient.afterPropertiesSet");
+            connect();
+            call("초기화 연결 메시지");
+        }
+
+        @PreDestroy
+        public void close() {
+            System.out.println("NetworkClient.destroy");
+            disconnect();
+        }
+    }
+    ```
+    ```java
+    @Configuration
+    static class LifeCycleConfig {
+        @Bean
+        public NetworkClient networkClient() {
+            NetworkClient networkClient = new NetworkClient(); 
+            networkClient.setUrl("http://hello-spring.dev"); 
+            return networkClient;
+        }
+    }
+    ```
+> `TIP`
+> * @PostConstruc, @PreDestory 애노테이션을 사용하자
+> * 코드를 고칠 수 없는 외부라이브러리를 초기화, 종료해야되는 경우 @Bean의 initMethod, destroyMethod 속성을 사용하자.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 > intellij 단축키
 > * `command+shift+enter`: 구문 자동완성 후 다음 줄로 넘어감
