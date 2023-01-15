@@ -3,13 +3,13 @@ package hello.core.lifecycle;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
 
-public class NetworkClient {
+public class NetworkClientSpring implements InitializingBean, DisposableBean {
     private String url;
 
     // [comment] 스프링 빈 라이프사이클
     // 생성자 호출 -> 의존관계 주입 -> afterPropertiesSet() 호출해 초기화 -> 로직 수행 -> destroy() 호출해 종료
 
-    public NetworkClient() {
+    public NetworkClientSpring() {
         System.out.println("생성자 호출, url = " + url);
     }
 
@@ -31,13 +31,17 @@ public class NetworkClient {
         System.out.println("close " + url);
     }
 
-    public void init() {
+    // 의존 관계 주입이 끝나면 호출되는 메서드 오버라이딩
+    @Override
+    public void afterPropertiesSet() throws Exception {
         System.out.println("NetworkClient.afterPropertiesSet");
         connect();
         call("초기화 연결 메시지");
     }
 
-    public void close() {
+    // 스프링 컨테이너 종료 전 호출되는 메서드 오버라이딩
+    @Override
+    public void destroy() throws Exception {
         System.out.println("NetworkClient.destroy");
         disconnect();
     }
