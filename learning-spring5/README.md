@@ -339,9 +339,330 @@
 * 컴포넌트 스캔에서 같은 빈 이름을 등록하면 어떻게 될까?
 * 자동 빈 등록 vs 자동 빈 등록
   * 컴포넌트 스캔에 의해 자동으로 스프링 빈이 등록되는데, 그 이름이 같은 경우 *ConflictingBeanDefinitionException* 발생
-* 수등 빈 등록 vs 자동 빈 등록
+* 수동 빈 등록 vs 자동 빈 등록
   * 스프링에서는 수등 빈 등록이 우선권을 갖으나, 스프링 부트에서는 수동 빈 등록과 자동 빈 등록이 충돌나면 오류가 발생한다. (우선권이 주어질 시 어려운 버그가 발생할 수 있으므로)
   * 스프링 부트에서 프로퍼티에 spring.main.allow-bean-definition-overriding=true를 통해 수동 빈이 자동 빈을 오버라이딩하게도 설정 가능 
+
+## 의존관계 자동 주입
+**의존관계 주입 방법**
+1. 생성자 주입
+    * 생성자를 통해 의존 관계를 주입 받는 방법
+    * 컴포넌트가 스프링 빈에 등록될 때 생성자가 호출되는데, 그때 스프링 컨테이너에서 필요한 의존관계들을 주입
+    * `불변, 필수` 의존관게에서 사용!
+    * 생성자가 단 1개라면 스프링 빈 등록 시 @Autowired 생략 가능!
+    ```java
+    @Component
+    public class OrderServiceImpl implements OrderService {
+        private final MemberRepository memberRepository;
+        private final DiscountPolicy discountPolicy;
+        
+        @Autowired
+        public OrderServiceImpl(MemberRepository memberRepository, DiscountPolicy discountPolicy) {
+            this.memberRepository = memberRepository;
+            this.discountPolicy = discountPolicy;
+        }
+    }
+    ```
+2. 수정자 주입
+    * setter라 불리는 필드의 값을 변경하는 수정자 메서드를 통해서 의존관계를 주입하는 방법
+    * `선택, 변경` 가능성이 있는 의존관계에서 사용
+    ```java
+    @Component
+    public class OrderServiceImpl implements OrderService {
+
+        private MemberRepository memberRepository;
+        private DiscountPolicy discountPolicy;
+
+        @Autowired
+        public void setMemberRepository(MemberRepository memberRepository) {
+            this.memberRepository = memberRepository;
+        }
+
+        @Autowired
+        public void setDiscountPolicy(DiscountPolicy discountPolicy) {
+            this.discountPolicy = discountPolicy;
+        }
+    }
+    ```
+    * 자바빈 프로퍼티 규약: 필드의 값을 직접 변경하지 않고, setXxx, getXxx 라는 메서드를 통해서 값을 읽거나 수정하는 규칙
+    * 수정자 주입은 자바빈 프로퍼티 규약의 수정자 메서드 방식을 사용하는 방법이다.
+
+3. 필드 주입
+    * 필드에 의존 관계를 주입하는 방법
+    * 코드가 간결하지만, 외부에서 직접 의존관계 주입을 할 수 없어 테스트 하기 힘들다는 치명적 단점이 있다.
+    * DI 프레임워크가 없으면 아무것도 할 수 없는 코드가 된다.
+    * 애플리케이션의 실제 코드와 관계 없는 테스트 코드에서만 사용하자!
+    ```java
+    @Autowired private MemberRepository memberRepository;
+    @Autowired private DiscountPolicy discountPolicy;
+    ```
+4. 일반 메서드 주입
+    * 일반 메서드를 통해 의존 관계를 주입받는 방법
+    * 일반적으로 잘 사용하지 않는다.
+
+> 의존관계 주입 주의 사항
+> * `의존관계 자동 주입은 스프링 컨테이너가 관리하는 스프링 빈이어야 동작` 한다.  
+> * 스프링 빈이 아닌 클래스에서 @Autowired 를 적용한 경우 아무 기능을 하지 않는다.
+
+**옵션 처리**  
+* 주입할 스프링 빈이 없어도 동작해야 하는 경우 사용
+* `@Autowired`만 사용하는 경우 required 옵션의 기본값이 true로 되어 있어 자동 주입 대상이 없으면 오류가 발생한다. 이를 방지하기 위해 옵션 처리
+* 옵션 처리 방법
+  * @Autowired(required = false): 자동 주입할 대상이 없으면 메서드 자체가 호출이 안된다.
+  * org.springframework.lang.@Nullable: 자동 주입할 대상이 없으면 null이 입력된다.
+  * Optional<>: 자동 주입할 대상이 없으면 Optional.empty가 입력된다.
+* 옵션 처리 예시
+```java
+static class TestBean {
+   @Autowired(required = false)
+   public void setBean1(Member noBean1) {
+       System.out.println("noBean1 = " + noBean1);
+   }
+
+   @Autowired
+   public void setBean2(@Nullable Member noBean2) {
+       System.out.println("noBean2 = " + noBean2);
+   }
+
+   @Autowired
+   public void setBean3(Optional<Member> noBean3) {
+       System.out.println("noBean3 = " + noBean3);
+   }
+}
+```
+```
+// output
+noBean2 = null
+noBean3 = Optional.empty
+```
+  * Member는 스프링 빈이 아니므로, 의존 관계를 주입할 수 없다.
+  * 따라서 require = false 속성을 사용한 setBean1 메서드는 메서드 호출 자체가 되지 않았다.
+  
+**생성자 주입을 선택해야 하는 이유**  
+1. 불변
+    * 대부분의 의존관계는 한번 주입되고 나서 애플리케이션 종료시점까지 변경할 일이 없다.
+    * 수정자 주입을 사용하면, setXxx 메서드를 public으로 열어두어야 한다. 
+    * 누군가 실수로 변경할 수도 있고, 변경하면 안되는 메서드를 열어두는 것은 좋은 설계 방법이 아니다.
+    * `생성자 주입`은 객체를 생성할 때 딱 1번 호출되므로, `불변`하게 설계할 수 있다.
+2. 누락
+    * 생성자 주입을 사용하면 주입 데이터를 누락했을 때 컴파일 오류가 발생한다.
+    * 즉, IDE에서 바로 어떤 값을 필수로 주입해야 하는지 알 수 있다.
+3. final
+    * 생성자 주입을 사용하면 필드에 fianl 키워드를 사용할 수 있다.
+    * 따라서 `생성자에서 혹시라도 값이 설정되지 않는 오류를 컴파일 시점에 막아준다.`
+    * 생성자 주입 외 주입 방식은 모두 생성자 이후에 호출되므로, 필드에 final 키워드를 사용할 수 없다.
+> TIP
+> * 컴파일 오류가 세상에서 가장 빠르고, 좋은 오류다!  
+> * 항상 생성자 주입을 선택해라! 그리고 가끔 옵션이 필요하면 수정자 주입을 선택해라. 필드 주입은 사용하지 않는게 좋다.
+
+**롬복과 생성자 의존관계 주입**
+* 롬복 라이브러리가 제공하는 `@RequiredArgsConstructor` 기능을 사용하면 final이 붙은 필드를 모아 컴파일 시점에 생성자를 자동으로 만들어준다.
+* 이를 통해 의존관계 주입을 편리하게 할 수 있다.
+
+**조회 빈이 2개 이상인 경우 문제점** 
+* 기본적으로 bean은 타입으로 조회한다. 이때, 조회할 빈의 하위 타입 빈이 여러 개인 경우 NoUniqueBeanDefinitionException 오류가 발생한다.
+* 예시)
+  * DiscountPolicy의 하위 타입인 FixDiscountPolicy, RateDiscountPolicy 둘 다 스프링 빈으로 선언해보자.
+  ```java
+  @Component
+  public class FixDiscountPolicy implements DiscountPolicy { }
+  ```
+  ```java
+  @Component
+  public class RateDiscountPolicy implements DiscountPolicy { }
+  ```
+  * 그리고 이렇게 의존관계 자동 주입을 실행하면, NoUniqueBeanDefinitionException 오류가 발생한다.
+  ```java
+  @Autowired
+  private DiscountPolicy discountPolicy
+  ```
+* 이때 하위 타입으로 의존관계 주입을 할 수도 있지만, 하위 타입으로 지정하는 것은 DIP를 위배하고, 유연성이 떨어진다.
+
+**조회 빈이 2개 이상인 경우 해결방법**
+1. @Autowired 필드 명 매칭
+    * @Autowired 는 타입 매칭을 시도하고, 이때 여러 빈이 있으면 필드 이름, 파라미터 이름으로 빈 이름을 추가 매칭한다.
+    ```java
+    // 생성자 주입 시 파라미터 이름으로 매칭
+    @Autowired
+    public OrderServiceImpl(MemberRepository memberRepository, DiscountPolicy rateDiscountPolicy)     {
+        this.discountPolicy = rateDiscountPolicy;
+        this.memberRepository = memberRepository;
+    }
+    ```
+    ```java
+    // 필드 주입 시 필드 이름으로 매칭
+    @Autowired
+    private DiscountPolicy rateDiscountPolicy
+    ```
+2. @Qualifier
+    * 추가 구분자를 붙여주는 방법이다. 주입 시 추가적인 방법을 제공하는 것이지 빈 이름을 변경하는 것은 아니다.
+    * @Qualifier로 의존관계 주입 시 지정한 빈을 찾지 못한다면 해당 이름의 스프링 빈을 추가로 찾는다. 
+    * 어떠한 스프링 빈도 찾지 못하는 경우 NoSuchBeanDefinitionException 예외 발생
+    * @Qualifier는 @Qualifier를 찾는 용도로만 사용하는게 명확하고 좋다.
+    ```java
+    @Component
+    @Qualifier("mainDiscountPolicy")
+    public class RateDiscountPolicy implements DiscountPolicy{
+        ...
+    }
+    ```
+    ```java
+    @Autowired
+    public OrderServiceImpl(MemberRepository memberRepository, @Qualifier("mainDiscountPolicy") DiscountPolicy discountPolicy) {
+        this.discountPolicy = discountPolicy;
+        this.memberRepository = memberRepository;
+    }
+    ```
+    * @Qualifier의 단점은 위와 같이 모든 코드에 @Qualifier를 붙여줘야 한다.
+3. @Primary
+    * 의존관계 주입 시 같은 타입의 빈이 여러 개인 경우 우선순위를 지정하는 방법
+    ```java
+    @Component
+    @Primary
+    public class RateDiscountPolicy implements DiscountPolicy{
+        ...
+    }
+    ```
+    * @Primary보다 @Qualifier의 우선순위가 더 높다.
+
+**@Qualifier 애노테이션 직접 만들기**
+* `@Qualifier("mainDiscountPolicy")` 이렇게 직접 문자열을 적으면 컴파일 시 타입 체크가 안된다.
+* 다음과 같이 애노테이션을 만들어 문제를 해결할 수 있다.
+```java
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER, ElementType.TYPE, ElementType.ANNOTATION_TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Inherited
+@Documented
+@Qualifier("mainDiscountPolicy")
+public @interface MainDiscountPolicy {
+}
+```
+```java
+@Component
+@MainDiscountPolicy  // @Qualifier("mainDiscountPolicy") 대신 커스텀 어노테이션 사용
+public class RateDiscountPolicy implements DiscountPolicy{
+```
+```java
+@Autowired
+public OrderServiceImpl(MemberRepository memberRepository, @MainDiscountPolicy DiscountPolicy discountPolicy) {
+    this.discountPolicy = discountPolicy;
+    this.memberRepository = memberRepository;
+}
+```
+**자동, 수동 빈 등록의 올바른 실무 운영 기준**  
+* 편리한 자동 빈 등록 기능을 기본으로 사용하자
+  * 스프링 빈을 하나 등록할 때 `@Component`만 넣어주면 끝나느 일을 `@Configuration` 설정 정보에 가서 `@Bean`을 적고, 객체를 생성하고, 주입할 대상을 일일이 적어주는 과정은 상당히 번거롭다.
+  * 결정적으로 자동 빈 등록을 사용해도 OCP, DIP를 지킬 수 있기 때문에 자동 빈 등록을 사용하자
+* 수동 빈 등록은 언제 사용하면 좋을까
+  * 기술 지원 빈: 기술적인 문제나 공통 관심사(AOP)를 처리할 때 주로 사용된다. 데이터베이스 연결이나, 공통 로그 처리 처럼 업무 로직 지원을 위한 하부 기술이나 공통 기술이다.
+  * 애플리케이션에 광범위하게 영향을 미치는 기술 지원 객체는 수동 빈으로 등록해서 설정 정보에 명확하게 들어내는 것이 유지보수하기 좋다.
+  * 비즈니스 로직 중에서 다형성을 적극 활용하는 경우 설정 정보(@Configuration)만 보고 한 눈에 파악하기 위한 수동 빈 등록을 고민해볼 수 있다.
+  * 위 경우 수동 빈 등록 또는 자동 빈 등록 객체들을 특정 패키지에 같이 묶어두는게 좋다!
+
+## 빈 생명주기 콜백
+**빈 생명주기**  
+* 빈 생명 주기: 스프링에서 객체의 초기화 작업과 종료 작업을 처리할 때 사용하는 라이프 사이클
+* 스프링 빈 라이프사이클
+  * `객체 생성 -> 의존관계 주입`
+  * 스프링 빈은 객체를 생성하고, 의존관계 주입이 다 끝난 다음에야 필요한 데이터를 사용할 수 있는 준비가 완료된다.
+  * 초기화 작업은 의존관계 주입이 모두 완료되고 난 다음 호출해야 한다.
+  * 스프링은 의존관계 주입이 완료되면 스프링 빈에게 `콜백 메서드`를 통해 초기화 시점을 알려주는 기능이 있다.
+  * 스프링은 스프링 컨테이너가 종료되기 직전에 `소멸 콜백`을 준다. 따라서 안전하게 종료 가능
+* 스프링 빈의 이벤트 라이프사이클
+  * `스프링 컨테이너 생성` -> `스프링 빈 생성` -> `의존관계 주입` -> `초기화 콜백` -> `사용` -> `소멸전 콜백` -> `스프링 종료`
+> `TIP` 객체의 생성과 초기화를 분리하자!
+> * 생성자는 필수 정보(파라미터)를 받고, 메모리를 할당해서 객체를 생성하는 책임을 가진다.
+> * 초기화는 이렇게 생성된 값을 활용해서 외부 커넥션을 연결하는 등 무거운 동작을 수행한다.
+> * 따라서 객체 생성과 초기화를 분리하는 것이 유지보수 관점에서 좋다.
+
+**빈 생명주기 콜백 지원 방식**  
+1. 인터페이스(InitializingBean, DisposableBean)
+    * 외부 라이브러리에 적용할 수 없어 거의 사용하지 않는 방법이다.
+    * InitializingBean은 afterPropertiesSet() 메서드로 초기화 콜백 지원
+    * DisposableBean은 destroy() 메서드로 소멸 콜백 지원
+2. 설정 정보에 초기화 메서드, 종료 메서드 지정
+    * 설정 정보에 `@Bean(initMethod = "함수 이름", destroyMethod = "함수 이름")` 를 사용해 초기화, 소멸 메서드를 지정할 수 있다.
+    * 코드가 아니라 설정 정보를 사용하기 때문에 코드를 고칠 수 없는 라이브러리에도 초기화, 종료 메서드를 적용할 수 있다.
+    * @Bean의 destroyMethod 속성은 기본값이 `(inferred)` (추론)으로 등록되어 있다.
+    * 이 추론 기능은 close, shutdown 라는 이름의 메서드를 자동으로 호출해준다.
+    * 따라서 직접 스프링 빈으로 등록하면 종료 메서드는 따로 적어주지 않아도 잘 동작한다.
+3. 어노테이션 @PostConstruct, @PreDestory
+    * 스프링에서 권장하는 방법이다.
+    * 초기화 메서드에 @POstConstruct, 소멸 메서드에 @PreDestory 어노테이션을 붙이면 해당 시점에 자동 호출된다.
+    * javax.annotation에 존재하는 자바 표준으로 스프링에 의존적이지 않다.
+    * 외부 라이브러리를 초기화할 수 없다는 단점이 있다. 외부 라이브러리 초기화, 종료 시에는 @Bean의 기능을 사용하자
+    ```java
+    public class NetworkClient {
+        private String url;
+
+        public NetworkClient() {
+            System.out.println("생성자 호출, url = " + url);
+        }
+    
+        public void setUrl(String url) {
+            this.url = url;
+        }
+
+        public void connect() {
+            System.out.println("connect: " + url);
+        }
+
+        public void call(String message) {
+            System.out.println("Call " + url + " message = " + message);
+        }
+
+        public void disconnect() {
+            System.out.println("close " + url);
+        }
+
+        @PostConstruct
+        public void init() {
+            System.out.println("NetworkClient.afterPropertiesSet");
+            connect();
+            call("초기화 연결 메시지");
+        }
+
+        @PreDestroy
+        public void close() {
+            System.out.println("NetworkClient.destroy");
+            disconnect();
+        }
+    }
+    ```
+    ```java
+    @Configuration
+    static class LifeCycleConfig {
+        @Bean
+        public NetworkClient networkClient() {
+            NetworkClient networkClient = new NetworkClient(); 
+            networkClient.setUrl("http://hello-spring.dev"); 
+            return networkClient;
+        }
+    }
+    ```
+> `TIP`
+> * @PostConstruc, @PreDestory 애노테이션을 사용하자
+> * 코드를 고칠 수 없는 외부라이브러리를 초기화, 종료해야되는 경우 @Bean의 initMethod, destroyMethod 속성을 사용하자.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
