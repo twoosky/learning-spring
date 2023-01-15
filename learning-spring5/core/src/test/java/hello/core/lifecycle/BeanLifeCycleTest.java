@@ -16,15 +16,23 @@ public class BeanLifeCycleTest {
     public void lifeCycleTest() {
         ConfigurableApplicationContext ac = new AnnotationConfigApplicationContext(LifeCycleConfig.class);
         NetworkClientSpring client = ac.getBean(NetworkClientSpring.class);
-        ac.close();  // 스프링 컨테이너 종료
+        ac.close();
     }
 
     // 2. 설정 정보에 의한 콜백 메서드 호출
     @Test
     public void lifeCycleTest2() {
         ConfigurableApplicationContext ac = new AnnotationConfigApplicationContext(LifeCycleConfig.class);
+        NetworkClientBean client = ac.getBean(NetworkClientBean.class);
+        ac.close();
+    }
+
+    // 3. @PostConstruct, @PreDestroy 사용한 콜백 메서드 호출
+    @Test
+    public void lifeCycleTest3() {
+        ConfigurableApplicationContext ac = new AnnotationConfigApplicationContext(LifeCycleConfig.class);
         NetworkClient client = ac.getBean(NetworkClient.class);
-        ac.close();  // 스프링 컨테이너 종료
+        ac.close();
     }
 
     @Configuration
@@ -38,6 +46,13 @@ public class BeanLifeCycleTest {
         }
 
         @Bean(initMethod = "init", destroyMethod = "close")
+        public NetworkClientBean networkClientBean() {
+            NetworkClientBean networkClient = new NetworkClientBean();
+            networkClient.setUrl("http://hello-spring.dev");
+            return networkClient;
+        }
+
+        @Bean
         public NetworkClient networkClient() {
             NetworkClient networkClient = new NetworkClient();
             networkClient.setUrl("http://hello-spring.dev");
