@@ -14,20 +14,17 @@ import javax.servlet.http.HttpServletRequest;
 public class LogDemoController {
 
     private final LogDemoService logDemoService;
-    // [comment] MyLogger의 빈 스코프는 request이므로 의존관계 주입을 받을 수 없다.
-    // - request 스코프 빈은 스프링 애플리케이션을 실행하는 시점에 빈 생성이 되지 않기 때문
-    // - 따라서 ObjectProvider를 통해 MyLogger 빈을 찾아 사용
-    private final ObjectProvider<MyLogger> myLoggerProvider;
+    private final MyLogger myLogger;
+//    private final ObjectProvider<MyLogger> myLogger;
 
     @RequestMapping("log-demo")
     @ResponseBody
-    public String logDemo(HttpServletRequest request) throws InterruptedException {
+    public String logDemo(HttpServletRequest request) {
         String requestURL = request.getRequestURL().toString();
-        MyLogger myLogger = myLoggerProvider.getObject();
-        myLogger.setRequestURL(requestURL);
 
+        System.out.println("myLogger = " + myLogger.getClass());
+        myLogger.setRequestURL(requestURL);
         myLogger.log("controller test");
-        Thread.sleep(1000);
         logDemoService.logic("testId");
         return "OK";
     }
