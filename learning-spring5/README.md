@@ -690,6 +690,49 @@ PrototypeBean HelloBean() {
   * 3. 스프링 컨테이너는 생성한 프로토타입 빈을 클라이언트에 반환한다.
   * 4. 프로토타입 빈은 스프링 컨테이너가 관리하지 않으므로, 이후에 스프링 컨테이너에 같은 요청이 오면 항상 새로운 프로토타입 빈을 생성해서 반환한다.
 
+**프로토 타입 스코프 빈을 싱글톤 빈과 함께 사용시 문제점**
+* 싱글톤 빈은 스프링 컨테이너 생성 시점에 함께 생성되고, 의존관게 주입도 발생한다.
+* 의존관계 자동 주입 시점에 스프링 컨테이너에 프로토타입 빈을 요청한다.
+* 스프링 컨테이너는 프로토타입 빈을 생성해서 싱글톤 빈에 반환하고, 싱글톤 빈은 이를 내부 필드에 보관한다. (참조값 보관)
+* 싱글톤 빈의 내부에 가지고 있는 프로토타입 빈은 이미 과거에 주입이 끝난 빈이기 때문에, `싱글톤 빈을 요청해도 프로토타입 빈은 새로 생성되지 않는다.`
+* 즉, 프로토타입 빈은 싱글톤 빈과 함께 계속 유지된다.
+
+**문제 해결 방법**
+1. 싱글톤 빈이 프로토타입을 사용할 때마다 스프링 컨테이너에 새로 요청하게 변경
+    ```java
+    @Autowired
+    ApplicationContext ac;
+
+    public int logic() {
+        PrototypeBean prototypeBean = ac.getBean(PrototypeBean.class);
+        prototypeBean.addCount();
+        int count = prototypeBean.getCount();
+        return count;
+    }
+    ```
+    * 스프링 애플리케이션 컨텍스트 전체를 주입받게 되면, 스프링 컨테이너에 종속적인 코드가 되고, 단위 테스트도 어려워진다.
+2. `ObjectProvider`
+    ```java
+    @Autowired
+    private ObjectProvider<PrototypeBean> prototypeBeanProvider;
+
+    public int logic() {
+        PrototypeBean prototypeBean = prototypeBeanProvider.getObject();
+        prototypeBean.addCount();
+        int count = prototypeBean.getCount();
+        return count;
+    }
+    ```
+    * 지정한 빈을 컨테이너에서 대신 찾아주는 DL(Dependency Lookup) 서비스를 제공하는 객체이다.
+    * 프로토타입 빈은 스프링 컨테이너가 관리하지 않으므로, prototypeBeanProvider.getObject()를 통해 항상 새로운 프로토타입 빈이 생성된다.
+    * ObjectFactory의 확장
+    * 스프링에 의존적
+    * 권장되는 방법
+3. JSR-330 Provider
+    * javax.inject.Provider 라는 JSR-330 자바 표준을 사용하는 방법
+    * 스프링에 의존적이지 않음.
+    * 별도의 라이브러리가 필요하다는 단점이 있다.
+    
 
 
 
