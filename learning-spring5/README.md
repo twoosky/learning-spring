@@ -690,7 +690,7 @@ PrototypeBean HelloBean() {
   * 3. 스프링 컨테이너는 생성한 프로토타입 빈을 클라이언트에 반환한다.
   * 4. 프로토타입 빈은 스프링 컨테이너가 관리하지 않으므로, 이후에 스프링 컨테이너에 같은 요청이 오면 항상 새로운 프로토타입 빈을 생성해서 반환한다.
 
-**프로토 타입 스코프 빈을 싱글톤 빈과 함께 사용시 문제점**
+**프로토타입 스코프 빈을 싱글톤 빈과 함께 사용시 문제점**
 * 싱글톤 빈은 스프링 컨테이너 생성 시점에 함께 생성되고, 의존관게 주입도 발생한다.
 * 의존관계 자동 주입 시점에 스프링 컨테이너에 프로토타입 빈을 요청한다.
 * 스프링 컨테이너는 프로토타입 빈을 생성해서 싱글톤 빈에 반환하고, 싱글톤 빈은 이를 내부 필드에 보관한다. (참조값 보관)
@@ -712,6 +712,10 @@ PrototypeBean HelloBean() {
     ```
     * 스프링 애플리케이션 컨텍스트 전체를 주입받게 되면, 스프링 컨테이너에 종속적인 코드가 되고, 단위 테스트도 어려워진다.
 2. `ObjectProvider`
+    * 지정한 빈을 컨테이너에서 대신 찾아주는 DL(Dependency Lookup) 서비스를 제공하는 객체이다.
+    * 프로토타입 빈은 스프링 컨테이너가 관리하지 않으므로, prototypeBeanProvider.getObject()를 통해 항상 새로운 프로토타입 빈이 생성된다.
+    * ObjectFactory의 확장, 스프링에 의존적
+    * 권장되는 방법
     ```java
     @Autowired
     private ObjectProvider<PrototypeBean> prototypeBeanProvider;
@@ -723,17 +727,45 @@ PrototypeBean HelloBean() {
         return count;
     }
     ```
-    * 지정한 빈을 컨테이너에서 대신 찾아주는 DL(Dependency Lookup) 서비스를 제공하는 객체이다.
-    * 프로토타입 빈은 스프링 컨테이너가 관리하지 않으므로, prototypeBeanProvider.getObject()를 통해 항상 새로운 프로토타입 빈이 생성된다.
-    * ObjectFactory의 확장
-    * 스프링에 의존적
-    * 권장되는 방법
 3. JSR-330 Provider
-    * javax.inject.Provider 라는 JSR-330 자바 표준을 사용하는 방법
+    * `javax.inject.Provider` 라는 JSR-330 자바 표준을 사용하는 방법
     * 스프링에 의존적이지 않음.
     * 별도의 라이브러리가 필요하다는 단점이 있다.
     
+**웹 스코프**  
+* `웹 스코프`: 웹 환경에서만 동작하는 스코프
+* 웹 스코프는 스프링이 해당 스코프의 종료시점까지 관리한다. 따라서 종료 메서드가 호출된다.
+* 웹 스코프 종류
+  * `request`: HTTP 요청 하나가 들어오고 나갈 때까지 유지되는 스코프, 각각의 *HTTP 요청마다 별도의 빈 인스턴스가 생성되고, 관리된다.*
+  * `session`: HTTP Session과 동일한 생명주기를 갖는 스코프
+  * `application`: 서블릿 컨텍스트(`ServletContext`)와 동일한 생명주기를 갖는 스코프
+  * `websocket`: 웹 소켓과 동일한 생명주기를 갖는 스코프
+* 웹 환경 추가
+  ```groovy
+  // web 라이브러리 추가
+  implementation 'org.springframwork.boot:spring-boot-starter-web'
+  ```
+  * 위 라이브러리를 추가하면 스프링 부트는 `내장 톰켓 서버`를 활용해 웹 서버와 스프링을 함께 실행시킨다.
+  * 스프링 부트는 웹 라이브러리가 없으면 `AnnotationConfigApplicationContext`을 기반으로 애플리케이션을 구동한다.
+  * 웹 라이브러리가 추가되면 `AnnotationConfigServletWebServerApplicationContext`를 기반으로 애플리케이션을 구동한다.
 
+**request 스코프 빈을 싱글톤 빈과 함께 사용시 문제점**
+  * 스프링 애플리케이션을 실행하는 시점에 싱글톤 빈은 생성되어 의존관계 주입을 해야한다.
+  * 하지만, request 스코프 빈은 실제 HTTP 요청이 와야 빈이 생성되므로 싱글톤 빈의 의존관계로 주입이 될 수 없다.
+  * 따라서 HTTP 요청이 올때 까지 request 스코 빈의 조회 지연 처리가 필요하다.
+
+**문제 해결 방법**
+1. `ObjectProvider`를 통해 HTTP 요청 들어오는 시점까지 빈 조회 지연
+2. 프록시 사용
+    * `proxyMode`를 통해 가짜 `프록시 클래스`를 만들어두고, HTTP request와 상관없이 가짜 프록시 클래스를 다른 빈에 미리 의존관계 주입해둘 수 있다.
+    * 즉, CGLIB라는 라이브러리로 내 클래스를 상속받은 가짜 프록시 객체를 만들어 주입
+    * 그 후, 가짜 프록시 객체에 실제 요청이 오면 내부에 실제 빈 요청을 위임한다.
+    ```java
+    @Component
+    @Scope(value = "request", proxyMode = ScopedProxyMode.TARGET_CLASS)
+    public class MyLogger {
+    }
+    ```
 
 
 
