@@ -171,7 +171,7 @@ public class ValidationItemControllerV3 {
 * Bean Validation을 적용하면 bindingResult에 애노테이션 이름으로 검증 오류 코드가 등록된
 * 이 오류 코드를 기반으로 `MessageCodesResolver`에 의해 다양한 메시지 코드가 순서대로 실행된다.
 
-@NotBlank 메시지 코드 실행 우선순위
+@NotBlank 메시지 코드 우선순위
 * NotBlank.item.itemName
 * NotBlank.itemName
 * NotBlank.java.lang.String
@@ -191,14 +191,86 @@ Max={0}, 최대 {1}
 ```
 2. 실행해보면 등록한 메시지가 정상 적용되는 것을 확인할 수 있다.
 
-**Bean Validation 메시지 찾는 순서**
+Bean Validation 메시지 찾는 우선순위
 1. 생성된 메시지 코드 순서대로 `messageSource` 에서 메시지 찾기
 2. 애노테이션의 message 속성 사용 : @NotBlank(message = "공백 X")
 3. 라이브러리가 제공하는 기본 값 사용 : 공백일 수 없습니다.
 
+### Bean Validation - 한계
+* 모델을 등록할 때와 수정할 때 검증 조건이 다를 수 있다.
+* 예시로, Item을 등록할 때는 수량을 9999까지 등록 가능하지만, 수정할 때는 무제한으로 변경가능한 경우
+* `해결 방법` : 객체 분리
+
+**객체 분리**
+* 컨트롤러마다 전달받는 데이터가 다르고, 검증 조건이 다르기 때문에 객체를 분리하는 것이 좋다.
+* ItemSaveForm
+```java
+@Data
+public class ItemSaveForm {
+    @NotBlank
+    private String itemName;
+
+    @NotNull
+    @Range(min = 1000, max = 1000000)
+    private Integer price;
+
+    @NotNull
+    @Max(value = 9999)
+    private Integer quantity;
+}
+```
+* ItemUpdateForm
+```java
+@Data
+public class ItemUpdateForm {
+    @NotNull
+    private Long id;
+
+    @NotBlank
+    private String itemName;
+
+    @NotNull
+    @Range(min = 1000, max = 1000000)
+    private Integer price;
+
+    private Integer quantity;
+}
+```
+> `TIP` : [검증 애노테이션 모음](https://docs.jboss.org/hibernate/validator/6.2/reference/en-US/html_single/#validator-defineconstraints-spec) 을 활용해 다양한 검증 애노테이션을 적용해보자!
+
+### Bean Validation - HTTP 메시지 컨버터
+* @Valid, @Validated 는 `HttpMessageConverter(@RequestBody)`에도 적용할 수 있다.
+* `@ModelAttribute`: HTTP 요청 파라미터 (URL 쿼리 스트링, POST Form)를 다룰 때 사용
+* `@RequestBody`: HTTP Body의 데이터를 객체로 변환할 때 사용, 주로 API JSON 요청 다룰 때 사용
 
 
+**예시**
+* ValidationItemApiController
+```java
+@Slf4j
+@RestController
+@RequestMapping("/validation/api/items")
+public class ValidationItemApiController {
 
+    @PostMapping("/add")
+    public Object addItem(@RequestBody @Validated ItemSaveForm form, BindingResult bindingResult) {
+        log.info("API 컨트롤러 호출");
 
+        if (bindingResult.hasErrors()) {
+            log.info("검증 오류 발생 errors={}", bindingResult);
+            return bindingResult.getAllErrors();
+        }
 
+        log.info("성공 로직 실행");
+        return form;
+    }
+}
+```
+**@ModelAttribute vs @RequestBody**
+* @ModelAttribute
+  * 각각의 필드 단위로 세밀하게 적용된다. 
+  * 특정 필드에 타입이 맞지 않는 오류가 발생해도 나머지 필드는 정상 처리
+* @RequestBody
+  * HttpMessageConverter 단계에서 JSON 데이터를 객체로 변경하지 못하면 이후 단계 자체가 진행되지 않고 예외가 발생한다.
+  * 만약 Integer 타입 price에 문자값을 넣어 JSON 데이터를 넘겨준 경우 예외가 발생해 컨트롤러도 호출되지 않고, Validator도 적용할 수 없다.
 
