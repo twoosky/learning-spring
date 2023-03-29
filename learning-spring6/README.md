@@ -274,3 +274,154 @@ public class ValidationItemApiController {
   * HttpMessageConverter 단계에서 JSON 데이터를 객체로 변경하지 못하면 이후 단계 자체가 진행되지 않고 예외가 발생한다.
   * 만약 Integer 타입 price에 문자값을 넣어 JSON 데이터를 넘겨준 경우 예외가 발생해 컨트롤러도 호출되지 않고, Validator도 적용할 수 없다.
 
+# 로그인 처리
+## Cookie
+* 로그인 상태를 유지하기 위해 Cookie를 사용할 수 있다.
+* `영속 쿠키` : 만료 날짜를 입력하면 해당 날짜까지 유지
+* `세션 쿠키` : 만료 날짜를 생략하면 브라우저 종료시까지만 유지
+
+
+**cookie를 사용한 로그인 처리 과정**
+* 서버에서 로그인에 성공하면 쿠키를 생성하고, `HttpServletResponse`에 담아 브라우저에 전달한다.
+* 이후 브라우저는 모든 요청에 쿠키를 담아 요청한다.
+
+1. 서버에서 쿠키 생성해 브라우저에 전달
+<img src="https://user-images.githubusercontent.com/50009240/228516047-4533e9f2-8fc9-4519-8052-d1c625fd7860.png" width="500" height="250">
+
+2. 클라이언트는 모든 요청에 쿠키 담아 요청
+<img src="https://user-images.githubusercontent.com/50009240/228516533-22c70066-0516-44c3-8d6c-0c95dfd255b3.png" width="500" height="250">
+
+**로그인 - 예시**
+* LoginService
+```java
+@Service
+@RequiredArgsConstructor
+public class LoginService {
+
+    private final MemberRepository memberRepository;
+
+    /**
+     * @return null이면 로그인 실패
+     */
+    public Member login(String loginId, String password) {
+        return memberRepository.findByLoginId(loginId)
+                .filter(m -> m.getPassword().equals(password))
+                .orElse(null);
+    }
+}
+```
+* LoginController
+  * 로그인 성공 시 Cookie를 생성하고, HttpServletResponse에 넣어 브라우저에 전달
+```java
+@Slf4j
+@Controller
+@RequiredArgsConstructor
+public class LoginController {
+    @PostMapping("/login")
+    public String login(@Valid @ModelAttribute LoginForm form, BindingResult bindingResult, HttpServletResponse response) {
+        
+        if (bindingResult.hasErrors()) {
+            return "login/loginForm";
+        }
+
+        Member loginMember = loginService.login(form.getLoginId(), form.getPassword());
+
+        if (loginMember == null) {
+            bindingResult.reject("loginFail", "아이디 또는 비밀번호가 맞지 않습니다.");
+            return "login/loginForm";
+        }
+
+        // 로그인 성공 처리
+
+        // 쿠키에 시간 정보를 주지 않으면 세션 쿠키로 설정된다.
+        // - 브라우저 종료시 모두 종료
+        Cookie idCookie = new Cookie("memberId", String.valueOf(loginMember.getId()));
+        response.addCookie(idCookie);
+
+        return "redirect:/";
+    }
+    
+    // ...
+}
+```
+* HomeController
+```java
+@Slf4j
+@Controller
+@RequiredArgsConstructor
+public class HomeController {
+
+    private final MemberRepository memberRepository;
+
+    // 쿠키를 갖고있는 사용자 id만 들어오도록 required = false 설정
+    @GetMapping("/")
+    public String homeLogin(@CookieValue(name = "memberId", required = false) Long memberId, Model model) {
+
+        if (memberId == null) {
+            return "home";
+        }
+
+        Member loginMember = memberRepository.findById(memberId);
+        if (loginMember == null) {
+            return "home";
+        }
+
+        model.addAttribute("member", loginMember);
+        return "loginHome";
+    }
+}
+```
+
+**로그아웃 - 예시**
+* LoginController
+  * 쿠키의 만료날자(maxAge)를 0으로 세팅해 로그아웃 처리
+```java
+@Slf4j
+@Controller
+@RequiredArgsConstructor
+public class LoginController {
+
+    private final LoginService loginService;
+
+    // ... 로그인 api
+
+    @PostMapping("/logout")
+    public String logout(HttpServletResponse response) {
+        expireCookie(response, "memberId");
+        return "redirect:/";
+    }
+
+    private void expireCookie(HttpServletResponse response, String cookieName) {
+        Cookie cookie = new Cookie(cookieName, null);
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
