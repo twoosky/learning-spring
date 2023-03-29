@@ -317,6 +317,7 @@ public class LoginService {
 @Controller
 @RequiredArgsConstructor
 public class LoginController {
+
     @PostMapping("/login")
     public String login(@Valid @ModelAttribute LoginForm form, BindingResult bindingResult, HttpServletResponse response) {
         
@@ -415,16 +416,115 @@ public class LoginController {
 * 서버에서 추정 불가능한 UUID로 세션 ID를 생성하고, 세션 ID와 세션에 보관할 값을 서버의 세션 저장소에 보관한다.
 * 그 후, 세션ID만 쿠키에 담아 브라우저에 전달하는 방식이다.
 
-1. 서버에서 세션 ID 생성 후 중요한 정보는 세션 저장소에 저장하고, 세션ID를 쿠키에 담아 브라우저에 전달
+1. 서버에서 세션 ID 생성 후 회원 정보는 세션 저장소에 저장하고, 세션ID를 쿠키에 담아 브라우저에 전달
 <img src="https://user-images.githubusercontent.com/50009240/228537842-a8daf28d-a8f1-4ebe-966b-bc1c39383a5d.png" width="500" height="250">
 
 2. 클라이언트는 요청시 항상 세션ID가 담긴 쿠키를 전달
 <img src="https://user-images.githubusercontent.com/50009240/228538061-d672113c-8f46-4895-a6b5-3fffd550730e.png" width="500" height="250">
 
+### Session - HttpSession
+**로그인 - 예시**
+* SessionConst
+  * `HttpSession`에 데이터를 보관하고 조회할 때, 같은 이름이 중복 되어 사용되므로, 상수 하나 정의했다.
+```java
+public class SessionConst {
+    public static final String LOGIN_MEMBER = "loginMember";
+}
+```
+* LoginController
+```java
+@PostMapping("/login")
+public String loginV3(@Valid @ModelAttribute LoginForm form, BindingResult bindingResult, HttpServletRequest request) {
+    if (bindingResult.hasErrors()) {
+        return "login/loginForm";
+    }
 
+    Member loginMember = loginService.login(form.getLoginId(), form.getPassword());
 
+    if (loginMember == null) {
+        bindingResult.reject("loginFail", "아이디 또는 비밀번호가 맞지 않습니다.");
+        return "login/loginForm";
+    }
 
+    // 로그인 성공 처리
 
+    // 세션이 있으면 있는 세션 반환, 없으면 신규 세션을 생성
+    HttpSession session = request.getSession();
+    // 세션에 로그인 회원 정보 보관
+    session.setAttribute(SessionConst.LOGIN_MEMBER, loginMember);
+
+    return "redirect:/";
+}
+```
+* request.getSession(true)
+  * 세션이 있으면 기존 세션 반환
+  * 세션이 없으면 새로운 세션 생성해 반환
+  * true가 default
+* request.getSession(false)
+  * 세션이 있으면 기존 세션을 반환
+  * 세션이 없으면 새로운 세션을 생성하지 않는다. null을 반환한다.
+* session.setAttribute()
+  * 세션에 데이터 보관 (key, value 형식)
+  * 하나의 세션에 여러 값을 저장할 수 있다. 메모리에 저장됨
+
+**로그아웃 - 예시**
+* LoginController
+```java
+@PostMapping("/logout")
+public String logoutV3(HttpServletRequest request) {
+    HttpSession session = request.getSession(false);
+    if (session != null) {
+        session.invalidate();
+    }
+    return "redirect:/";
+}
+```
+* request.getSession(false) : 세션을 갖고올 때, 세션이 없으면 null을 반환하도록 설정
+* session.invalidate() : 해당 세션 및 데이터를 다 날린다.
+
+**@SessionAttribute**
+* 더 편리하게 이미 로그인된 사용자를 찾기 위해 스프링에서 제공하는 어노테이션
+<br></br>
+* @SessionAttribute 사용하지 않은 방법
+  * HttpServletRequest에서 session을 갖고오고, 해당 세션에 데이터 존재여부를 확인해야 됨
+```java
+@GetMapping("/")
+public String homeLoginV3(HttpServletRequest request, Model model) {
+    
+    //세션이 없으면 home
+    HttpSession session = request.getSession(false); 
+    
+    if (session == null) {
+        return "home";
+    }
+    
+    Member loginMember = (Member) session.getAttribute(SessionConst.LOGIN_MEMBER);
+    //세션에 회원 데이터가 없으면 home 
+    
+    if (loginMember == null) {
+        return "home";
+    }
+    
+    //세션이 유지되면 로그인으로 이동 
+    model.addAttribute("member", loginMember); 
+    return "loginHome";
+}
+```
+* @SessionAttribute 사용한 방법
+```java
+@GetMapping("/")
+public String homeLoginV3Spring(@SessionAttribute(name = SessionConst.LOGIN_MEMBER, required = false) Member loginMember, Model model) {
+    
+    //세션에 회원 데이터가 없으면 home 
+    if (loginMember == null) {
+          return "home";
+    }
+      
+    //세션이 유지되면 로그인으로 이동 
+    model.addAttribute("member", loginMember); 
+    return "loginHome";
+}
+```
 
 
 
