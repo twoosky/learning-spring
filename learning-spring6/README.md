@@ -526,8 +526,47 @@ public String homeLoginV3Spring(@SessionAttribute(name = SessionConst.LOGIN_MEMB
 }
 ```
 
+**세션 정보**
+* sessionId: 세션Id, JSESSIONID 의 값
+* maxInactiveInterval: 세션의 유효 시간
+* creationTime: 세션 생성일시
+* lastAccessedTime: 세션과 연결된 사용자가 최근에 서버에 접근한 시간, 클라이언트에서 서버로 sessionId(JSESSIONID)를 요청한 경우에 갱신
+* isNew: 새로 생성된 세션인지 아니면 이미 과거에 만들어졌고, 클라이언트에서 서버로 sessionId (JSESSIONID)를 요청해서 조회된 세션인지 여부
+<br></br>
+* SessionInfoController
+```java 
+@Slf4j
+@RestController
+public class SessionInfoController {
 
+     @GetMapping("/session-info")
+     public String sessionInfo(HttpServletRequest request) {
+         HttpSession session = request.getSession(false); 
+         
+         if (session == null) {
+             return "세션이 없습니다."; 
+        }
+        
+        //세션 데이터 출력 
+        session.getAttributeNames().asIterator()
+        .forEachRemaining(name -> log.info("session name={}, value={}", name, session.getAttribute(name)));
+        
+        log.info("sessionId={}", session.getId()); 
+        log.info("maxInactiveInterval={}", session.getMaxInactiveInterval()); 
+        log.info("creationTime={}", new Date(session.getCreationTime())); 
+        log.info("lastAccessedTime={}", new Date(session.getLastAccessedTime())); 
+        log.info("isNew={}", session.isNew());
+        return "세션 출력"; 
+    }
+}
+```
 
+**타임 아웃 설정**
+* HttpSession은 세션 생성 시점이 아니라 사용자가 서버에 최근에 요청한 시간을 기준으로 타임 아웃이 동작
+* 세션 삭제: session.invalidate() 가 호출 되는 경우에 삭제됨
+* 세션 타임 설정
+  * 프로퍼티 값 수정을 통한 글로벌 세션 타임 아웃 설정: server.servlet.session.timeout=60
+  * 코드에서 HttpSession 수정을 통한 세션 별 타임 아웃 설정: session.setMaxInactiveInterval(1800);
 
 
 
