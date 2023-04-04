@@ -574,9 +574,8 @@ public class SessionInfoController {
 * 상품 관리 컨트롤러에서 로그인 여부를 체크하는 로직을 하나하나 작성하는 것은 매우 불편하므로 애플리케이션 여러 로직에서 공통으로 관심이 있는 있는 것을 공통 관심사로 처리하는 것이 좋음
 * 스프링의 AOP로도 공통 관심사를 해결할 수 잇지만, 웹과 관련된 공통 관심사는 지금부터 설명할 서블릿 필터 또는 스프링 인터셉터를 사용하는 것이 좋음
 * 서블릿 필터나 스프링 인터셉터는 HttpServletRequest를 제공
-* 스프링 인터셉터는 없지만 chain.doFilter(request, response); 를 호출해서 다음 필터 또는 서블릿을 호출할 때 request, response 를 다른 객체로 바꿀 수 있는 기능을 제공
 * 필터 흐름
-  * HTTP 요청 ->WAS-> 필터 -> 서블릿 -> 컨트롤러
+  * HTTP 요청 ->WAS-> 필터 -> 서블릿(디스패처 서블릿) -> 컨트롤러
 * 필터 제한
   * HTTP 요청 -> WAS -> 필터 -> 서블릿 -> 컨트롤러 // 로그인 사용자
   * HTTP 요청 -> WAS -> 필터(적절하지 않은 요청이라 판단, 서블릿 호출X) // 비 로그인 사용자
@@ -584,7 +583,8 @@ public class SessionInfoController {
   * HTTP 요청 -> WAS -> 필터1 -> 필터2 -> 필터3 -> 서블릿 -> 컨트롤러
 
 **필터 인터페이스**
-* 필터 인터페이스
+* was에서 doFilter를 호출해 필터를 적용하고, 모든 필터가 통과하면 서블릿을 호출함
+* 필터 인터페이스를 구현하고 등록하면, 서블릿 컨테이너가 필터를 `싱글톤` 객체로 생성하고, 관리한다.
 ```java
 public interface Filter {
       public default void init(FilterConfig filterConfig) throws ServletException
@@ -597,6 +597,201 @@ public interface Filter {
 * init(): 필터 초기화 메서드, 서블릿 컨테이너가 생성될 때 호출
 * doFilter(): 고객의 요청이 올 때 마다 해당 메서드가 호출, 필터의 로직을 구현
 * destroy(): 필터 종료 메서드, 서블릿 컨테이너가 종료될 때 호출
+
+**서블릿 필터 - 요청 로그**
+* 모든 요청을 로그로 남기는 필터를 구현해보자
+
+
+LogFilter
+```java
+@Slf4j
+public class LogFilter implements Filter {
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {
+        log.info("log filter init");
+    }
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
+        log.info("log filter doFilter");
+
+        HttpServletRequest httpRequest = (HttpServletRequest) request;  // HTTP 사용 시 다운케스팅 필요
+        String requestURI = httpRequest.getRequestURI();
+
+        String uuid = UUID.randomUUID().toString();
+
+        try {
+            log.info("REQUEST [{}][{}]", uuid, requestURI);
+            chain.doFilter(request, response);
+        } catch (Exception e) {
+            throw e;
+        } finally {
+            log.info("RESPONSE [{}][{}]", uuid, requestURI);
+        }
+    }
+
+    @Override
+    public void destroy() {
+        log.info("log filter destroy");
+    }
+}
+```
+* 필터를 사용하려면 Filter 인터페이스를 구현해야 한다.
+* HTTP 요청이 오면 `doFilter`가 호출된다.
+* HTTP 요청을 구분하기 위해 요청당 임의의 uuid 생성
+* `chain.doFilter(request, response);` : 다음 필터가 있으면 필터를 호출하고, 필터가 없으면 서블릿을 호출한다. (중요)
+  * 이 코드가 없다면, 다음단계로 진행되지 않는다.
+
+WebConfig
+```java
+@Configuration
+public class WebConfig {
+
+    @Bean
+    public FilterRegistrationBean logFilter() {
+        FilterRegistrationBean<Filter> filterFilterRegistrationBean = new FilterRegistrationBean<>();
+        filterFilterRegistrationBean.setFilter(new LogFilter());
+        filterFilterRegistrationBean.setOrder(1);
+        filterFilterRegistrationBean.addUrlPatterns("/*");
+
+        return filterFilterRegistrationBean;
+    }
+}
+```
+* 스프링 부트에선 `FilterRegistrationBean`을 사용해 필터를 등록하면 된다.
+* `setFilter(new LogFilter())` : 등록할 필터 지정
+* `setOrder(1)` : 필터를 체인으로 동작한다. 이를 통해 순서를 지정할 수 있다. 낮을 수록 먼저 동작한다.
+* `addUrlPatterns("/*")` : 필터를 적용할 URL 패턴 지정, 한번에 여러 패턴 지정 가능
+
+> `TIP` : 실무에서 HTTP 요청시 같은 요청의 로그에 모두 같은 식별자를 자동으로 남기는 방법은 logback mdc로 검색해보자.
+
+**서블릿 필터 - 인증 체크**
+* 로그인 되지 않은 사용자는 상품 관련 페이지에 접근할 수 없도록 인증 체크 필터를 개발해보자
+
+LoginCheckFilter
+```java
+@Slf4j
+public class LoginCheckFilter implements Filter {
+
+    private static final String[] whitelist = {"/", "/members/add", "/login", "/logout", "/css/*"};
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        String requestURI = httpRequest.getRequestURI();
+
+        HttpServletResponse httpResponse = (HttpServletResponse)  response;
+
+        try {
+            log.info("인증 체크 필터 시작{}", requestURI);
+
+            // 화이트 리스트를 제외한 모든 경우에 인증 체크 로직
+            if (!isLoginCheckPath(requestURI)) {
+                log.info("인증 체크 로직 실행 {}", requestURI);
+                HttpSession session = httpRequest.getSession(false);
+                if (session == null || session.getAttribute(SessionConst.LOGIN_MEMBER) == null) {
+                    log.info("미인증 사용자 요청 {}", requestURI);
+                    // 로그인으로 redirect
+                    httpResponse.sendRedirect("/login?redirectURL=" + requestURI);
+                    return;
+                }
+            }
+
+            chain.doFilter(request, response);
+        } catch (Exception e) {
+            throw e;  // 예외 로깅 가능하지만, 톰켓까지 예외를 보내주어야 함
+        } finally {
+            log.info("인증 체크 필터 종료 {}", requestURI);
+        }
+    }
+
+    /**
+     * 화이트 리스트의 경우 인증 체크 X
+     */
+    private boolean isLoginCheckPath(String requestURI) {
+        return PatternMatchUtils.simpleMatch(whitelist, requestURI);
+    }
+}
+```
+* whitelist가 아닌 url로 요청이 들어오면, 로그인 사용자인지 세션을 확인하고 세션이 없다면 로그인 화면으로 redirect
+* 이때 redirectURL에는 사용자가 요청한 url이 들어간다 ex) `http://localhost:8080/login?redirectURL=/items`
+
+WebConfig
+```java
+@Bean
+public FilterRegistrationBean loginCheckFilter() {
+    FilterRegistrationBean<Filter> filterFilterRegistrationBean = new FilterRegistrationBean<>();
+    filterFilterRegistrationBean.setFilter(new LoginCheckFilter());
+    filterFilterRegistrationBean.setOrder(2);
+    filterFilterRegistrationBean.addUrlPatterns("/*");
+
+    return filterFilterRegistrationBean;
+}
+```
+
+LoginController
+```java
+@PostMapping("/login")
+public String loginV3(@Valid @ModelAttribute LoginForm form, BindingResult bindingResult, 
+                      @RequestParam(defaultValue = "/") String redirectURL,
+                      HttpServletRequest request
+) {
+    if (bindingResult.hasErrors()) {
+        return "login/loginForm";
+    }
+
+    Member loginMember = loginService.login(form.getLoginId(), form.getPassword());
+
+    if (loginMember == null) {
+        bindingResult.reject("loginFail", "아이디 또는 비밀번호가 맞지 않습니다.");
+        return "login/loginForm";
+    }
+
+    // 로그인 성공 처리
+
+    // 세션이 있으면 있는 세션 반환, 없으면 신규 세션을 생성
+    HttpSession session = request.getSession();
+    // 세션에 로그인 회원 정보 보관
+    session.setAttribute(SessionConst.LOGIN_MEMBER, loginMember);
+
+    // redirectURL 적용
+    return "redirect:" + redirectURL;
+}
+```
+* LoginCheckFilter에서 미인증 사용자는 요청 경로를 포함해 `/login`에 `redirectURL` 요청 파라미터를 추가해서 요청했다.
+* 이 값을 사용해서 로그인 성공시 해당 경로로 고객을 `redirect` 한다.
+
+## 스프링 인터셉터
+* 스프링 인터셉터는 `스프링 MVC`가 제공하는 기술이다.
+* 서블릿 필터와 같이 웹과 관련된 공통 관심 사항을 효과적으로 해결할 수 있는 기술
+* 스프링 인터셉터는 디스패처 서블릿(MVC의 시작점)과 컨트롤러 사이에서 컨트롤러 호출 직전에 호출된다.
+* 스프링 인터셉터 흐름
+  * HTTP 요청 -> WAS -> 필터 -> 서블릿 -> 인터셉터 -> 컨트롤러
+* 스프링 인터셉터 제한
+  * HTTP 요청 -> WAS -> 필터 -> 서블릿 -> 스프링 인터셉터 -> 컨트롤러  // 로그인 사용자
+  * HTTP 요청 -> WAS -> 필터 -> 서블릿 -> 스프링 인터셉터 (적절하지 않은 요청이라 판단, 컨트롤러 호출 X)  // 비 로그인 사용자
+* 스프링 인터셉터 체인
+  * HTTP 요청 -> WAS -> 필터 -> 서블릿 -> 인터셉터1 -> 인터셉터2 -> 컨트롤러
+
+**스프링 인터셉터 인터페이스**
+```java
+public interface HandlerInterceptor {
+    
+    default boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {}
+
+    default void postHandle(HttpServletRequest request, HttpServletResponse  response, Object handler, @Nullable ModelAndView modelAndView) throws Exception {}
+
+    default void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, @Nullable Exception ex) throws Exception {}
+}
+```
+
+
+
+
+
+
+
+
 
 
 
