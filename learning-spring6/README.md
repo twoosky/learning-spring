@@ -526,10 +526,77 @@ public String homeLoginV3Spring(@SessionAttribute(name = SessionConst.LOGIN_MEMB
 }
 ```
 
+**세션 정보**
+* sessionId: 세션Id, JSESSIONID 의 값
+* maxInactiveInterval: 세션의 유효 시간
+* creationTime: 세션 생성일시
+* lastAccessedTime: 세션과 연결된 사용자가 최근에 서버에 접근한 시간, 클라이언트에서 서버로 sessionId(JSESSIONID)를 요청한 경우에 갱신
+* isNew: 새로 생성된 세션인지 아니면 이미 과거에 만들어졌고, 클라이언트에서 서버로 sessionId (JSESSIONID)를 요청해서 조회된 세션인지 여부
+<br></br>
+* SessionInfoController
+```java 
+@Slf4j
+@RestController
+public class SessionInfoController {
 
+     @GetMapping("/session-info")
+     public String sessionInfo(HttpServletRequest request) {
+         HttpSession session = request.getSession(false); 
+         
+         if (session == null) {
+             return "세션이 없습니다."; 
+        }
+        
+        //세션 데이터 출력 
+        session.getAttributeNames().asIterator()
+        .forEachRemaining(name -> log.info("session name={}, value={}", name, session.getAttribute(name)));
+        
+        log.info("sessionId={}", session.getId()); 
+        log.info("maxInactiveInterval={}", session.getMaxInactiveInterval()); 
+        log.info("creationTime={}", new Date(session.getCreationTime())); 
+        log.info("lastAccessedTime={}", new Date(session.getLastAccessedTime())); 
+        log.info("isNew={}", session.isNew());
+        return "세션 출력"; 
+    }
+}
+```
 
+**타임 아웃 설정**
+* HttpSession은 세션 생성 시점이 아니라 사용자가 서버에 최근에 요청한 시간을 기준으로 타임 아웃이 동작
+* 세션 삭제: session.invalidate() 가 호출 되는 경우에 삭제됨
+* 세션 타임 설정
+  * 프로퍼티 값 수정을 통한 글로벌 세션 타임 아웃 설정: server.servlet.session.timeout=60
+  * 코드에서 HttpSession 수정을 통한 세션 별 타임 아웃 설정: session.setMaxInactiveInterval(1800);
 
+## 서블릿 필터
+**서블릿 필터 소개**
+* 필터는 서블릿이 지원하는 수문장
+* 상품 관리 컨트롤러에서 로그인 여부를 체크하는 로직을 하나하나 작성하는 것은 매우 불편하므로 애플리케이션 여러 로직에서 공통으로 관심이 있는 있는 것을 공통 관심사로 처리하는 것이 좋음
+* 스프링의 AOP로도 공통 관심사를 해결할 수 잇지만, 웹과 관련된 공통 관심사는 지금부터 설명할 서블릿 필터 또는 스프링 인터셉터를 사용하는 것이 좋음
+* 서블릿 필터나 스프링 인터셉터는 HttpServletRequest를 제공
+* 스프링 인터셉터는 없지만 chain.doFilter(request, response); 를 호출해서 다음 필터 또는 서블릿을 호출할 때 request, response 를 다른 객체로 바꿀 수 있는 기능을 제공
+* 필터 흐름
+  * HTTP 요청 ->WAS-> 필터 -> 서블릿 -> 컨트롤러
+* 필터 제한
+  * HTTP 요청 -> WAS -> 필터 -> 서블릿 -> 컨트롤러 // 로그인 사용자
+  * HTTP 요청 -> WAS -> 필터(적절하지 않은 요청이라 판단, 서블릿 호출X) // 비 로그인 사용자
+* 필터 체인
+  * HTTP 요청 -> WAS -> 필터1 -> 필터2 -> 필터3 -> 서블릿 -> 컨트롤러
 
+**필터 인터페이스**
+* 필터 인터페이스
+```java
+public interface Filter {
+      public default void init(FilterConfig filterConfig) throws ServletException
+  {}
+      public void doFilter(ServletRequest request, ServletResponse response,
+              FilterChain chain) throws IOException, ServletException;
+      public default void destroy() {}
+}
+```
+* init(): 필터 초기화 메서드, 서블릿 컨테이너가 생성될 때 호출
+* doFilter(): 고객의 요청이 올 때 마다 해당 메서드가 호출, 필터의 로직을 구현
+* destroy(): 필터 종료 메서드, 서블릿 컨테이너가 종료될 때 호출
 
 
 
