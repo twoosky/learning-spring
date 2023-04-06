@@ -1390,10 +1390,7 @@ public class WebConfig implements WebMvcConfigurer {
 * 예외 처리를 하지 않거나, response.sendError()을 사용해 서블릿 컨테이너까지 예외가 올라가면 오류 페이지 호출을 위해 복잡한 프로세스가 실행된다.
 * `ExceptionResolver`를 사용함으로써 예외처리가 깔끔해졌다.
 
-
-
-
-
+### 스프링이 제공하는 ExceptionHandler
 
 
 
