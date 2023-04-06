@@ -1014,6 +1014,147 @@ public class WebConfig implements WebMvcConfigurer {
 * 기존에는 `@SessionAttribute(name = SessionConst.LOGIN_MEMBER, required = false)` 를 통해 로그인 회원 정보를 가져왔다.
 * 이와 결과는 동일하지만 ArgumentResolver를 활용하면 더 편리하게 로그인 회원 정보를 조회할 수 있다.
 
+# 예외처리와 오류 페이지
+## 서블릿 예외 처리
+* 자바
+  * 자바의 메인 메서드를 직접 실행하는 경우 `main` 이라는 이름의 쓰레드가 실행된다.
+  * 실행 도중 예외를 잡지 못하고, 실행한 `main()` 메서드를 넘어서 예외가 던져지면, 예외 정보를 남기고 해당 쓰레드는 종료된다.
+* 웹 애플리케이션
+  * 사용자 요청 별로 `별도의 쓰레드가 할당되고`, 서블릿 컨테이너 안에서 실행된다.
+  * 애플리케이션에서 예외를 잡지 못하고, 서블릿 밖으로 예외가 전달되면 `500` error가 발생한다.
+  * WAS(여기까지 전파) <- 필터 <- 서블릿 <- 인터셉터 -> 컨트롤러(예외발생)
+
+**서블릿 예외 처리 - response.sendError()**
+* HttpServletResponse가 제공하는 sendError 라는 메서드를 사용해 서블릿 컨테이너에 오류가 발생했다는 것을 전달할 수 있다.
+* 이 메서드를 사용하면 HTTP 상태 코드와 오류 메시지도 추가할 수 있다.
+* WAS(sendError 호출 기록 확인) <- 필터 <- 서블릿 <- 인터셉터 <- 컨트롤러(response.sendError())
+
+ServletExController
+```java
+@Slf4j
+@Controller
+public class ServletExController {
+
+    @GetMapping("/error-404")
+    public void error404(HttpServletResponse response) throws IOException {
+        response.sendError(404, "404 오류!");
+    }
+
+    @GetMapping("/error-500")
+    public void error500(HttpServletResponse response) throws IOException {
+        response.sendError(500);
+    }
+}
+```
+
+**서블릿 예외 처리 - 오류 페이지 등록**
+* WebServerCustomizer
+```java
+@Component
+public class WebServerCustomizer implements WebServerFactoryCustomizer<ConfigurableWebServerFactory> {
+    @Override
+    public void customize(ConfigurableWebServerFactory factory) {
+
+        ErrorPage errorPage404 = new ErrorPage(HttpStatus.NOT_FOUND, "/error-page/404");
+        ErrorPage errorPage500 = new ErrorPage(HttpStatus.INTERNAL_SERVER_ERROR, "/error-page/500");
+        ErrorPage errorPageEx = new ErrorPage(RuntimeException.class, "/error-page/500");
+
+        factory.addErrorPages(errorPage404, errorPage500, errorPageEx);
+    }
+}
+```
+* ErrorPageController
+```java
+@Controller
+public class ErrorPageController {
+
+    @RequestMapping("/error-page/404")
+    public String errorPage404(HttpServletRequest request, HttpServletResponse response) {
+        log.info("errorPage 404");
+        return "error-page/404";
+    }
+
+    @RequestMapping("/error-page/500")
+    public String errorPage500(HttpServletRequest request, HttpServletResponse response) {
+        log.info("errorPage 500");
+        return "error-page/500";
+    }
+}
+```
+<details>
+<summary>404.html</summary>
+<div markdown="1">
+
+```bash
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+</head>
+<body>
+<div class="container" style="max-width: 600px">
+    <div class="py-5 text-center">
+        <h2>404 오류 화면</h2>
+    </div>
+    <div>
+        <p>오류 화면 입니다.</p>
+    </div>
+    <hr class="my-4">
+</div> <!-- /container -->
+</body>
+</html>
+```
+
+</div>
+</details>
+
+<details>
+<summary>500.html</summary>
+<div markdown="1">
+
+```bash
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+</head>
+<body>
+<div class="container" style="max-width: 600px">
+    <div class="py-5 text-center">
+        <h2>500 오류 화면</h2></div>
+    <div>
+        <p>오류 화면 입니다.</p>
+    </div>
+    <hr class="my-4">
+</div> <!-- /container -->
+</body>
+</html>
+```
+
+</div>
+</details>
+
+<br></br>
+
+* 예외 발생과 오류 페이지 요청 흐름
+  * 예외 발생 : `WAS(여기까지 전파) <- 필터 <- 서블릿 <- 인터셉터 <- 컨트롤러(예외발생)`
+  * 오류 페이지 요청 : `WAS (/error-page/500) 다시 요청 -> 필터 -> 서블릿 -> 인터셉터 -> 컨트롤러(/error-page/500) -> View`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
