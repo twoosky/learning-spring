@@ -1395,11 +1395,11 @@ public class WebConfig implements WebMvcConfigurer {
 * `DefaultHandlerExceptionResolver` : 스프링 내부 기본 예외를 처리
 * `ExceptionHandlerExceptionResolver` : @ExceptionHandler을 처리, API 예외 처리는 대부분 이 기능으로 해결
 
-### ResponseStatusExceptionResolver
+### 1. ResponseStatusExceptionResolver
 * 예외에 따라서 HTTP 상태 코드를 지정해준다.
 * @ResponseStatus를 적용한 예외와 ResponseStatusException 예외를 처리한다.
 
-**1. @ResponseStatus를 적용한 예외 예시**
+**@ResponseStatus를 적용한 예외 예시**
 ```java
 @ResponseStatus(code = HttpStatus.BAD_REQUEST, reason = "잘못된 요청 오류")
 public class BadRequestException extends RuntimeException {
@@ -1500,7 +1500,7 @@ protected ModelAndView applyStatusAndReason(int statusCode, @Nullable String rea
 </details>
 
 
-**2. ResponseStatusException 예시**
+**ResponseStatusException 예시**
 * @ResponseStatus는 개발자가 직접 변경할 수 없는 예외에는 적용할 수 없다. (라이브러리 등)
 * 추가로, 애노테이션을 사용하기 때문에 조건에 따라 동적으로 변경하는 것이 어렵다.
 * 이런 경우, `ResponseStatusException` 예외를 사용하면 된다.
@@ -1518,7 +1518,7 @@ public class ApiExceptionController {
 * ResponseStatusException 예외를 통해 상태 코드를 지정할 수 있다.
 * 동작원리는 @ResponseStatus 예외와 유사하다. ResponseStatusExceptionResolver 내 코드를 따라가보자.
 
-### DefaultHandlerExceptionResolver
+### 2. DefaultHandlerExceptionResolver
 * 스프링 내부에서 발생하는 스프링 예외를 처리한다.
 
 **예시**
@@ -1606,7 +1606,88 @@ protected ModelAndView handleTypeMismatch(TypeMismatchException ex,
 </details>
 
 
+### 3. ExceptionHandlerExceptionResolver
+* @ExceptionHandler란
+  * 스프링은 API 예외를 처리하기 위해 `@ExceptionHandler`라는 애노테이션을 제공한다.
+  * 이것이 바로 ExceptionHandlerExceptionResolver이다.
+  * 기본으로 제공하는 ExceptionResolver 중에 우선 순위가 가장 높다.
+* @ExceptionHandler 예외 처리 방법
+  * `@ExceptionHandler` 어노테이션을 선언하고, 해당 컨트롤러에서 처리하고 싶은 예외를 지정해주면 된다.
+  * 지정한 예외 또는 그 예외의 자식 클래스는 모두 잡을 수 있다.
 
+**예시**
+```java
+@Slf4j
+@RestController
+public class ApiExceptionV2Controller {
+
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ErrorResult illegalExHandler(IllegalArgumentException e) {
+        log.error("[exceptionHandler] ex", e);
+        return new ErrorResult("BAD", e.getMessage());
+    }
+    
+    @ExceptionHandler
+    public ResponseEntity<ErrorResult> userExHandler(UserException e) {
+        log.error("[exceptionHandler] ex", e);
+        ErrorResult errorResult = new ErrorResult("USER-EX", e.getMessage());
+        return new ResponseEntity<>(errorResult, HttpStatus.BAD_REQUEST);
+    }
+
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    @ExceptionHandler
+    public ErrorResult exHandler(Exception e) {
+        log.error("[exceptionHandler] ex", e);
+        return new ErrorResult("EX", "내부 오류");
+    }
+    
+    @GetMapping("/api2/members/{id}")
+    public ApiExceptionV2Controller.MemberDto getMember(@PathVariable("id") String id) {
+        if (id.equals("ex")) {
+            throw new RuntimeException("잘못된 사용자");
+        }
+        if (id.equals("bad")) {
+            throw new IllegalArgumentException("잘못된 입력 값");
+        }
+        if (id.equals("user-ex")) {
+            throw new UserException("사용자 오류");
+        }
+
+        return new ApiExceptionV2Controller.MemberDto(id, "hello " + id);
+    }
+
+    @Data
+    @AllArgsConstructor
+    static class MemberDto {
+        private String memberId;
+        private String name;
+    }
+}
+```
+* @ExceptionHandler로 예외를 처리하면 서블릿 컨테이너에 정상 응답으로 전달되기 때문에 200OK 상태코드로 나타난다.
+* 따라서, @ResponseStatus 어노테이션을 선언해 상태 코드를 지정해줘야 한다.
+* `ResponseEntity`를 사용하면 HTTP 응답 코드를 프로그래밍해서 동적으로 변경할 수 있다.
+* @ExceptionHandler에 예외를 지정하지 않으면 해당 메서드 파라미터 예외를 사용한다.
+* 부모 예외 클래스와 자식 예외 클래스 우선순위
+  * 자식예외가 발생하면 `부모예외처리()`, `자식예외처리()` 둘 다 호출 대상이 되는데, 둘 중 더 자세한 것이 우선권을 가지므로 `자식예외처리()`가 호출된다.
+  * 부모예외가 호출되면 `부모예외처리()`만 호출 대상이 되므로 `부모 예외 처리()`가 호출된다.
+
+실행 흐름
+```java
+@ExceptionHandler
+public ResponseEntity<ErrorResult> illegalExHandler(IllegalArgumentException e) {
+	log.error("[exceptionHandler] ex", e);
+	ErrorResult errorResult = new ErrorResult("BAD", e.getMessage());
+	return new ResponseEntity<>(errorResult, HttpStatus.BAD_REQUEST);
+}
+```
+1. http://localhost:880/api2/members/bad 요청
+2. 컨트롤러 호출한 결과 `IllegalArgumentException` 예외가 컨트롤러 밖으로 던져진다.
+3. 예외가 발생했으므로, `ExceptionResolver`가 작동한다. 가장 우선순위가 높은 `ExceptionHandlerExceptionResolver`가 실행된다.
+4. ExceptionHandlerExceptionResovler는 컨트롤러에 IllegalArgumentException을 처리할 수 있는 @ExceptionHandler가 있는지 확인한다.
+5. `illegalExHandle()`를 실행한다. @RestController이므로, @ResponseBody가 적용되어 응답이 JSON으로 반환된다.
+6. @ResponseStatus 어노테이션을 선언했으므로, HTTP 상태 코드 400으로 응답한다.
 
 
 
