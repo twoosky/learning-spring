@@ -1390,7 +1390,234 @@ public class WebConfig implements WebMvcConfigurer {
 * 예외 처리를 하지 않거나, response.sendError()을 사용해 서블릿 컨테이너까지 예외가 올라가면 오류 페이지 호출을 위해 복잡한 프로세스가 실행된다.
 * `ExceptionResolver`를 사용함으로써 예외처리가 깔끔해졌다.
 
-### 스프링이 제공하는 ExceptionHandler
+## 스프링이 제공하는 ExceptionResolver
+* `ResponseStatusExceptionResolver` : HTTP 상태 코드 지정
+* `DefaultHandlerExceptionResolver` : 스프링 내부 기본 예외를 처리
+* `ExceptionHandlerExceptionResolver` : @ExceptionHandler을 처리, API 예외 처리는 대부분 이 기능으로 해결
+
+### ResponseStatusExceptionResolver
+* 예외에 따라서 HTTP 상태 코드를 지정해준다.
+* @ResponseStatus를 적용한 예외와 ResponseStatusException 예외를 처리한다.
+
+**1. @ResponseStatus를 적용한 예외 예시**
+```java
+@ResponseStatus(code = HttpStatus.BAD_REQUEST, reason = "잘못된 요청 오류")
+public class BadRequestException extends RuntimeException {
+}
+```
+```java
+@RestController
+public class ApiExceptionController {
+    
+    @GetMapping("/api/response-status-ex1")
+    public String responseStatusEx1() {
+        throw new BadRequestException();
+    }
+}
+```
+* 해당 api로 요청을 보내면 400 에러가 발생한다. 
+* 이처럼 @ResponseStatus로 상태코드를 지정해 예외를 처리할 수 있다.
+    
+
+<details>
+<summary>@ResponseStatus 동작 원리</summary>
+<div markdown="1">
+
+
+
+
+ResponseStatusExceptionResolver
+```java
+public class ResponseStatusExceptionResolver extends AbstractHandlerExceptionResolver implements MessageSourceAware {
+
+	@Override
+	@Nullable
+	protected ModelAndView doResolveException(
+			HttpServletRequest request, HttpServletResponse response, @Nullable Object handler, Exception ex) {
+
+		try {
+			if (ex instanceof ResponseStatusException rse) {
+				return resolveResponseStatusException(rse, request, response, handler);
+			}
+
+			ResponseStatus status = AnnotatedElementUtils.findMergedAnnotation(ex.getClass(), ResponseStatus.class);
+			if (status != null) {
+				return resolveResponseStatus(status, request, response, handler, ex);
+			}
+
+			if (ex.getCause() instanceof Exception cause) {
+				return doResolveException(request, response, handler, cause);
+			}
+		}
+		catch (Exception resolveEx) {
+			if (logger.isWarnEnabled()) {
+				logger.warn("Failure while trying to resolve exception [" + ex.getClass().getName() + "]", resolveEx);
+			}
+		}
+		return null;
+	}
+}
+```
+* ResponseStatusExceptionResolver를 통해 예외가 처리된다.
+* @ResponseStatus 어노테이션이 붙어있는 경우 resolveResponseStatus 메서드를 실행해 상태코드를 지정한다.
+* resolveResponseStatus 메서드를 자세히 알아보자. (ResponseStatusExceptionResolver에 존재)
+
+resolveResponseStatus()
+```java
+protected ModelAndView resolveResponseStatus(ResponseStatus responseStatus, HttpServletRequest request,
+        HttpServletResponse response, @Nullable Object handler, Exception ex) throws Exception {
+
+    int statusCode = responseStatus.code().value();
+    String reason = responseStatus.reason();
+    return applyStatusAndReason(statusCode, reason, response);
+}
+```
+* 상태코드와 메시지를 전달하고, applyStatusAndReason을 반환한다. 이를 자세히 알아보자. (ResponseStatusExceptionResolver에 존재)
+
+applyStatusAndReason()
+```java
+protected ModelAndView applyStatusAndReason(int statusCode, @Nullable String reason, HttpServletResponse response)
+        throws IOException {
+
+    if (!StringUtils.hasLength(reason)) {
+        response.sendError(statusCode);
+    }
+    else {
+        String resolvedReason = (this.messageSource != null ?
+                this.messageSource.getMessage(reason, null, reason, LocaleContextHolder.getLocale()) :
+                reason);
+        response.sendError(statusCode, resolvedReason);
+    }
+    return new ModelAndView();
+}
+```
+* 앞에서 HandlerExceptionResolver를 통해 Json 형식으로 API 예외를 처리했던 것과 같이 
+* `response.sendError()`로 상태코드를 세팅하고, 빈 ModelAndView를 반환해 예외를 처리한다.
+* 이를 통해 이를 통해 서블릿에 정상응답이 전달되고, 500 에러가 아닌 설정한 상태코드로 예외를 처리할 수 있다!
+* sendError()를 호출하기 때문에, WAS에서 다시 오류 페이지 `/error`를 내부 요청한다.
+
+</div>
+</details>
+
+
+**2. ResponseStatusException 예시**
+* @ResponseStatus는 개발자가 직접 변경할 수 없는 예외에는 적용할 수 없다. (라이브러리 등)
+* 추가로, 애노테이션을 사용하기 때문에 조건에 따라 동적으로 변경하는 것이 어렵다.
+* 이런 경우, `ResponseStatusException` 예외를 사용하면 된다.
+
+ApiExceptionController
+```java
+@RestController
+public class ApiExceptionController {
+    @GetMapping("/api/response-status-ex2")
+    public void responseStatusEx2() {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "잘못된 요청 오류입니다. 메시지 사용", new IllegalArgumentException());
+    }
+}
+```
+* ResponseStatusException 예외를 통해 상태 코드를 지정할 수 있다.
+* 동작원리는 @ResponseStatus 예외와 유사하다. ResponseStatusExceptionResolver 내 코드를 따라가보자.
+
+### DefaultHandlerExceptionResolver
+* 스프링 내부에서 발생하는 스프링 예외를 처리한다.
+
+**예시**
+* 예를 들어, 파라미터 바인딩 시점에 타입이 맞지 않으면 내부에서 TypeMismatchException이 발생한다.
+* 파라미터 바인딩은 대부분 클라이언트가 HTTP 요청을 잘못 호출해 발생하는 문제로 HTTP 상태코드 400을 사용해야 한다.
+* 이때, DefaultHandlerExceptionResolver는 이것을 500 오류가 아니라 HTTP 상태 코드 400 오류로 변경
+* 직접 구현해보자.
+
+ApiExceptionController
+```java
+@GetMapping("/api/default-handler-ex")
+public String defaultException(@RequestParam Integer data) {
+    return "ok";
+}
+```
+* 요청 시 쿼리파라미터에 문자를 넣으면 TypeMismatchException이 발생한다.
+* 이때, DefaultHandlerExceptionResolver에 의해 500에러가 아닌 400에러가 발생한다.
+
+결과 : http://localhost:8080/api/default-handler-ex?data=qqq 요청
+```json
+{
+    "timestamp": "2023-04-07T09:50:15.237+00:00",
+    "status": 400,
+    "error": "Bad Request",
+    "path": "/api/default-handler-ex"
+}
+```
+
+<details>
+<summary>DefaultHandlerExceptionResolver 동작 원리</summary>
+<div markdown="1">
+
+DefaultHandlerExceptionResolver
+```java
+public class DefaultHandlerExceptionResolver extends AbstractHandlerExceptionResolver {
+   
+   /* ... */
+   
+   @Override
+	@Nullable
+	protected ModelAndView doResolveException(
+			HttpServletRequest request, HttpServletResponse response, @Nullable Object handler, Exception ex) {
+
+		try {
+			// ErrorResponse exceptions that expose HTTP response details
+			if (ex instanceof ErrorResponse errorResponse) {
+				ModelAndView mav = null;
+				if (ex instanceof HttpRequestMethodNotSupportedException theEx) {
+					mav = handleHttpRequestMethodNotSupported(theEx, request, response, handler);
+				}
+				else if (ex instanceof HttpMediaTypeNotSupportedException theEx) {
+					mav = handleHttpMediaTypeNotSupported(theEx, request, response, handler);
+				}
+                
+                /* ... */
+                
+                if (ex instanceof ConversionNotSupportedException theEx) {
+				    return handleConversionNotSupported(theEx, request, response, handler);
+			    }
+			    else if (ex instanceof TypeMismatchException theEx) {
+				    return handleTypeMismatch(theEx, request, response, handler);
+			    }
+        }
+        
+        /* ... */
+    }
+}
+```
+* 이와 같이 여러 Exception 종류에 따른 예외 처리가 정의되어 있다.
+* TypeMismatchException의 예외 처리에 대해 좀 더 자세히 알아보자.
+
+handleTypeMismatch()
+```java
+protected ModelAndView handleTypeMismatch(TypeMismatchException ex,
+        HttpServletRequest request, HttpServletResponse response, @Nullable Object handler) throws IOException {
+
+    response.sendError(HttpServletResponse.SC_BAD_REQUEST);
+    return new ModelAndView();
+}
+```
+* response.sendError()를 통해 상태 코드를 지정하고, 예외를 처리한다.
+* DefaultHandlerExceptionResolver는 이러한 방식으로 스프링 내부 예외 종류에 따라 그에 맞는 상태코드를 설정한다.
+
+</div>
+</details>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
