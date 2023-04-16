@@ -1690,9 +1690,88 @@ public ResponseEntity<ErrorResult> illegalExHandler(IllegalArgumentException e) 
 6. @ResponseStatus 어노테이션을 선언했으므로, HTTP 상태 코드 400으로 응답한다.
 
 
+### @ControllerAdvice
+* 정상 코드와 예외 처리 코드 분리
+* @ControllerAdvice 또는 @RestControllerAdvice를 사용하면 정상 코드와 예외 처리 코드가 하나의 컨트롤러에서 분리할 수 있음
+* @ControllerAdvice에 대상으로 지정한 여러 컨트롤러에 @ExceptionHandler, @InitBinder 기능을 부여해주는 역할을 수행
+* @RestControllerAdvice와 @ControllerAdvice의 차이는 @Controller와 @RestController의 차이와 같음
 
+ExControllerAdvice
+```java
+@Slf4j
+@RestControllerAdvice // 대상을 적용하지 않아서 모든 곳에 적용
+public class ExControllerAdvice {
 
+    @ResponseStatus(HttpStatus.BAD_REQUEST) 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ErrorResult illegalExHandle(IllegalArgumentException e) {
+        log.error("[exceptionHandle] ex", e);
+        return new ErrorResult("BAD", e.getMessage()); 
+    }
+    
+    @ExceptionHandler
+    public ResponseEntity<ErrorResult> userExHandle(UserException e) {
+        log.error("[exceptionHandle] ex", e);
+        ErrorResult errorResult = new ErrorResult("USER-EX", e.getMessage()); 
+        return new ResponseEntity<>(errorResult, HttpStatus.BAD_REQUEST);
+    }
+    
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR) 
+    @ExceptionHandler
+    public ErrorResult exHandle(Exception e) {
+        log.error("[exceptionHandle] ex", e);
+         return new ErrorResult("EX", "내부 오류");
+    }
+}
+```
+ApiExceptionV2Controller
+```java
+@Slf4j
+@RestController
+public class ApiExceptionV2Controller {
 
+    @GetMapping("/api2/members/{id}")
+    public MemberDto getMember(@PathVariable("id") String id) {
+        if (id.equals("ex")) {
+            throw new RuntimeException("잘못된 사용자");
+        }
+        
+        if (id.equals("bad")) {
+            throw new IllegalArgumentException("잘못된 입력 값"); 
+        }
+        
+        if (id.equals("user-ex")) {
+            throw new UserException("사용자 오류");
+        }
+
+        return new MemberDto(id, "hello " + id);
+    }
+
+    @Data
+    @AllArgsConstructor
+    static class MemberDto {
+        private String memberId;
+        private String name;
+    }
+}
+```
+* 정상 코드와 예외 처리 코드를 특정 대상으로 분리
+* @ControllerAdvice 에 대상을 지정하지 않으면 모든 컨트롤러에 적용
+
+대상 컨트롤러 지정하는 방법
+```java
+// 어노테이션이 있는 클래스 지정
+@ControllerAdvice(annotations = RestController.class) 
+public class ExampleAdvice1 {}
+
+// 패키지 지정
+@ControllerAdvice("org.example.controllers") 
+public class ExampleAdvice2 {}
+
+// 특정 클래스 지정
+@ControllerAdvice(assignableTypes = {ControllerInterface.class, AbstractController.class})
+public class ExampleAdvice3 {}
+```
 
 
 
