@@ -190,23 +190,79 @@ MyPool - After adding stats (total=10, active=2, idle=8, waiting=0)
 * 즉, 클라이언트에서 SQL을 전달하면, 현재 커넥션에 연결된 세션이 SQL을 실행한다.
 * 세션은 트랜잭션을 시작하고, 커밋 또는 롤백을 통해 트랜잭션을 종료할 수 있으며 이후에 새로운 트랜잭션을 다시 시작할 수도 있다.
 
-**트랜잭션 커밋과 롤백**
-* 데이터 변경 쿼리를 실행하고, 데이터베이스에 그 결과를 반영하려면 커밋 명령어인 `commit`을 호출하고,
-* 결과를 반영하고 싶지 않으면 롤백 명령어인 `rollback`을 호출하면 된다.
-* **커밋을 호출하기 전까지는 임시로 데이터를 저장**하는 것이다.
-* 따라서, 해당 트랜잭션을 시작한 세션(사용자)에게만 변경 데이터가 보이고, 다른 세션(사용자)에게는 변경 데이터가 보이지 않는다.
+## Commit
+* commit을 호출하기 전까지는 임시 데이터이다.
+  * 해당 트랜잭션을 시작한 세션(사용자)에서만 조회 가능하다.
+  * 각 트랜잭션끼리는 독립적이기 때문에, 다른 세션(사용자)에서는 조회가 불가능하다. 
+  * IsolationLevel이 ReadUncommited인 경우에는 조회 가능
+* 자동 Commit(default)과 수동 Commit이 있다.
+  * 기본적으로는 쿼리가 실행될 때마다 자동으로 Commit된다.
+  * Transaction을 사용하기 위해선 수동 Commit을 사용해야 한다.
+  * 수동 Commit으로 전환하는 것을 관례상 `트랜잭션의 시작`이라고 한다.
+```sql
+set autocommit false;
+insert into member(member_id, money) values ("id1", 10000);
+insert into member(member_id, money) values ("id2", 10000);
+commit;
+```
 
+## Rollback
+* 트랜잭션을 시작 이전 지점으로 되돌리는 것
+* 임시데이터가 DB에 반영되지 않고 삭제된다.
+```sql
+set autocommit false;
+insert into member(member_id, money) values ("id1", 10000);
+insert into member(member_id, money) values ("id2", 10000);
+rollback;
+```
 
+## Lock
+* 동시성을 해결하기 위한 방법
+* 데이터 정합성을 지킬 수 있다.
+* Lock을 선점해야 데이터를 변경할 수 있다.
+  * Lock을 선점하지 못한 경우 선점한 세션이 Lock을 반납할 때 까지 대기한다.
+  * 무한정 대기하는 것은 아니고, Lock 대기시간을 넘어가면 타임아웃 오류가 발생한다.
+* 기본적으로 데이터 조회는 Lock을 획득하지 않는다.
+  * 조회할 때도 Lock을 획득하고 싶다면, `SELECT FOR UPDATE` 구문을 사용하면 된다.
+  * 조회하는 동안 다른 세션에서 해당 데이터를 변경할 수 없다.
+  * Lock을 획득한 트랜잭션을 커밋하면 Lock을 반납한다.
+```sql
+SET LOCK_TIMEOUT 60000;
+set autocommit false;
+update member set money=1000 where member_id = 'memberA';
+```
+* LOCK_TIMEOUT을 설정하지 않으면 DB의 default 설정을 따라간다.
+* 트랜잭션이 시작되면 자동으로 Lock을 획득한다.
+* 트랜잭션 Commit 혹은 Rollback 시, Lock을 반납한다.
 
+**Lock 예시 - 데이터 변경**
+1. 세션1에서 데이터 변경 쿼리를 날린다. (Lock 획득)
+```sql
+set autocommit false;
+update member set money=500 where member_id = 'memberA';
+```
+2. 세션1이 commit 하기 전 세션2에서 데이터 변경 쿼리를 날린다.
+* update 쿼리가 실행되지 않고, Lock을 획득할 때까지 대기한다.
+* 만약, 60초 내 Lock을 획득하지 못한다면 lock Timeout 오류 발생
+```sql
+SET LOCK_TIMEOUT 60000;
+set autocommit false;
+update member set money=1000 where member_id = 'memberA';
+```
+3. 세션1에서 commit을 하면 Lock을 반납하고, 즉시 세션2에서 Lock을 얻어 쿼리를 실행한다.
 
-
-
-
-
-
-
-
-
+**Lock 예시 - 데이터 조회**
+1. 세션1에서 select for update 구문을 통해 조회 시 Lock을 획득할 수 있다.
+```sql
+set autocommit false;
+select * from member where member_id='memberA' for update;
+```
+2. 세션1이 commit 하기 전 세션2에서 데이터 변경 쿼리를 날린다. (Lock 대기, 일정 시간 초과 시 timeout)
+```sql
+set autocommit false;
+update member set money=500 where member_id = 'memberA';
+```
+3. 세션1이 commit을 하면 Lock을 반납하고, 즉시 세션2에서 Lock을 얻어 쿼리를 실행한다.
 
 
 
