@@ -50,13 +50,13 @@
 1. 커넥션 풀 초기화
 * 애플리케이션을 시작하는 시점에 필요한 만큼 커넥션을 미리 확보해서 커넥션 풀에 보관한다. 
 * 커넥션 풀에 들어 있는 커넥션은 TCP/IP로 DB와 커넥션이 연결되어 있는 상태이기 때문에, 언제든지 SQL을 DB에 전달할 수 있다.
-<img src="https://user-images.githubusercontent.com/50009240/232756312-a64bb8db-d0ef-45ad-8092-5da6ef2ba315.png" width="540" height="240">
+<img src="https://user-images.githubusercontent.com/50009240/233094582-eadb847b-3baa-48c7-a95a-0d8bd9761e7a.png" width="550" height="260">
 
 2. 커넥션 풀 사용
 * 애플리케이션 로직에서는 커넥션 풀을 통해 이미 생성되어 있는 커넥션을 객체 참조로 가져다 쓰면 된다.
 * 커넥션 풀은 자신이 가지고 있는 커넥션 중 하나를 반환한다.
 * 애플리케이션은 커넥션 풀에서 받은 커넥션을 사용해 SQL을 데이터베이스에 전달하고, 그 결과를 받아 처리한다.
-<img src="https://user-images.githubusercontent.com/50009240/232756451-8b1a06c5-3cf8-41c4-ab89-0aa3fc5c8205.png" width="570" height="250">
+<img src="https://user-images.githubusercontent.com/50009240/233094661-fb1dd214-7de7-4907-870b-c8171704f4bf.png" width="550" height="250">
 
 3. 커넥션 반환
 * 커넥션을 모두 사용하고 나면, 커넥션을 종료하는 것이 아니라, 다음에 다시 사용할 수 있도록 커넥션 풀에 반환한다.
@@ -72,7 +72,7 @@
 * DataSource 는 `커넥션을 획득하는 방법을 추상화` 하는 인터페이스 (자바에서 제공)
 * 커넥션을 얻는 방법은 JDBC DriverManager를 직접 사용하거나, HikariCP 커넥션 풀을 사용하는 등 다양한 방법이 있다.
 * 따라서, DataSource로 커넥션을 얻는 방법을 추상화하여 애플리케이션 로직은 변경하지 않도록 처리하는 것이다.
-<img src="https://user-images.githubusercontent.com/50009240/232759757-6553a7bd-6db4-4911-9bc5-d0e64c3ecaea.png" width="500" height="250">
+<img src="https://user-images.githubusercontent.com/50009240/233094978-3204359f-2321-4055-9106-38400dd57bb5.png" width="540" height="260">
 
 > DriverManager는 DataSource 인터페이스를 사용하지 않지만, 스프링에서는 DataSource를 구현한 `DriverManagerDataSource` 클래스 제공
 
@@ -164,4 +164,118 @@ MyPool - After adding stats (total=10, active=2, idle=8, waiting=0)
 
 </div>
 </details>
+
+
+# 트랜잭션
+* 데이터베이스에 데이터를 저장하는 가장 큰 이유는 트랜잭션을 지원하기 때문이다.
+* `커밋(Commit)`: 모든 작업이 성공해서 데이터베이스에 정상 반영하는듯
+* `롤백(Rollback)`: 작업 중 하나라도 실패해서 작업 이전으로 되돌리는 것
+
+**트랜잭션 ACID**
+* `원자성`: 트랜잭션 내에서 실행한 작업들은 마치 하나의 작업인 것처럼 모두 성공하거나, 모두 실패해야 한다.
+* `일관성`: 모든 트랜잭션은 일관성 있는 데이터베이스 상태를 유지해야 한다. (무결성 제약 조건 항상 만족, ..)
+* `격리성`: 동시에 실행되는 트랜잭션들이 서로에게 영향을 미치지 않도록 격리해야 한다.
+* `지속성`: 트랜잭션을 성공적으로 끝내면 그 결과가 항상 기록되어야 하며, 문제가 발생하면 기록을 통해 복구가능해야 한다.
+
+**트랜잭션 격리 수준**
+* 격리성을 위한 순차 처리시 성능 이슈로 인해 동시 처리를 위한 트랜잭션 격리 수준을 4단계로 나눠 정의했다.
+* `READ UNCOMMITED`: 커밋되지 않은 읽기
+* `READ COMMITED`: 커밋된 읽기 (주로 사용)
+* `REPEATABLE READ`: 반복 가능한 읽기
+* `SERIALIZABLE`: 직렬화 가능
+
+**데이터베이스 연결 구조와 DB 세션**
+* 사용자는 WAS나 DB 접근 툴 같은 클라이언트를 사용해 DB 서버에 접근하여 연결을 요청하고 커넥션을 맺는다.
+* 이때, DB 서버는 내부에 `세션`을 만들고, 세션을 통해 해당 커넥션으로 들어오는 모든 요청을 실행한다.
+* 즉, 클라이언트에서 SQL을 전달하면, 현재 커넥션에 연결된 세션이 SQL을 실행한다.
+* 세션은 트랜잭션을 시작하고, 커밋 또는 롤백을 통해 트랜잭션을 종료할 수 있으며 이후에 새로운 트랜잭션을 다시 시작할 수도 있다.
+
+## Commit
+* commit을 호출하기 전까지는 임시 데이터이다.
+  * 해당 트랜잭션을 시작한 세션(사용자)에서만 조회 가능하다.
+  * 각 트랜잭션끼리는 독립적이기 때문에, 다른 세션(사용자)에서는 조회가 불가능하다. 
+  * IsolationLevel이 ReadUncommited인 경우에는 조회 가능
+* 자동 Commit(default)과 수동 Commit이 있다.
+  * 기본적으로는 쿼리가 실행될 때마다 자동으로 Commit된다.
+  * Transaction을 사용하기 위해선 수동 Commit을 사용해야 한다.
+  * 수동 Commit으로 전환하는 것을 관례상 `트랜잭션의 시작`이라고 한다.
+```sql
+set autocommit false;
+insert into member(member_id, money) values ("id1", 10000);
+insert into member(member_id, money) values ("id2", 10000);
+commit;
+```
+
+## Rollback
+* 트랜잭션을 시작 이전 지점으로 되돌리는 것
+* 임시데이터가 DB에 반영되지 않고 삭제된다.
+```sql
+set autocommit false;
+insert into member(member_id, money) values ("id1", 10000);
+insert into member(member_id, money) values ("id2", 10000);
+rollback;
+```
+
+## Lock
+* 동시성을 해결하기 위한 방법
+* 데이터 정합성을 지킬 수 있다.
+* Lock을 선점해야 데이터를 변경할 수 있다.
+  * Lock을 선점하지 못한 경우 선점한 세션이 Lock을 반납할 때 까지 대기한다.
+  * 무한정 대기하는 것은 아니고, Lock 대기시간을 넘어가면 타임아웃 오류가 발생한다.
+* 기본적으로 데이터 조회는 Lock을 획득하지 않는다.
+  * 조회할 때도 Lock을 획득하고 싶다면, `SELECT FOR UPDATE` 구문을 사용하면 된다.
+  * 조회하는 동안 다른 세션에서 해당 데이터를 변경할 수 없다.
+  * Lock을 획득한 트랜잭션을 커밋하면 Lock을 반납한다.
+```sql
+SET LOCK_TIMEOUT 60000;
+set autocommit false;
+update member set money=1000 where member_id = 'memberA';
+```
+* LOCK_TIMEOUT을 설정하지 않으면 DB의 default 설정을 따라간다.
+* 트랜잭션이 시작되면 자동으로 Lock을 획득한다.
+* 트랜잭션 Commit 혹은 Rollback 시, Lock을 반납한다.
+
+**Lock 예시 - 데이터 변경**
+1. 세션1에서 데이터 변경 쿼리를 날린다. (Lock 획득)
+```sql
+set autocommit false;
+update member set money=500 where member_id = 'memberA';
+```
+2. 세션1이 commit 하기 전 세션2에서 데이터 변경 쿼리를 날린다.
+* update 쿼리가 실행되지 않고, Lock을 획득할 때까지 대기한다.
+* 만약, 60초 내 Lock을 획득하지 못한다면 lock Timeout 오류 발생
+```sql
+SET LOCK_TIMEOUT 60000;
+set autocommit false;
+update member set money=1000 where member_id = 'memberA';
+```
+3. 세션1에서 commit을 하면 Lock을 반납하고, 즉시 세션2에서 Lock을 얻어 쿼리를 실행한다.
+
+**Lock 예시 - 데이터 조회**
+1. 세션1에서 select for update 구문을 통해 조회 시 Lock을 획득할 수 있다.
+```sql
+set autocommit false;
+select * from member where member_id='memberA' for update;
+```
+2. 세션1이 commit 하기 전 세션2에서 데이터 변경 쿼리를 날린다. (Lock 대기, 일정 시간 초과 시 timeout)
+```sql
+set autocommit false;
+update member set money=500 where member_id = 'memberA';
+```
+3. 세션1이 commit을 하면 Lock을 반납하고, 즉시 세션2에서 Lock을 얻어 쿼리를 실행한다.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
