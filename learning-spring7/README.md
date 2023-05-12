@@ -264,9 +264,53 @@ update member set money=500 where member_id = 'memberA';
 ```
 3. 세션1이 commit을 하면 Lock을 반납하고, 즉시 세션2에서 Lock을 얻어 쿼리를 실행한다.
 
+# 스프링과 트랜잭션 문제 해결
+**트랜잭션 추상화를 하지 않는 경우 문제점**
+* JDBC 트랜잭션 예시
+```java
+public void deposit(String id, int money) throws SQLException {
+    Connection con =  dataSource.getConnection();
+    try {
+        con.setAutoCommit(false);
+        bizLogic(con, id, money);  // 비즈니스 로직 수행
+        con.commit();    // 성공시 트랜잭션 커밋
+    } catch (Exception e) {
+        con.rollback();  // 실패 시 트랜잭션 롤백
+        throw new IllegalStateException(e);
+    } finally {
+        con.setAutoCommit(true);
+        con.close();
+    }
+}
+```
+* 데이터 접근 계층의 구현 기술(JDBC, JPA)이 변경된 경우 서비스 계층의 코드를 수정해야 한다.
+* 데이터 접근 계층의 예외(JDBC-SQLException) 처리도 서비스 계층에 누수된다.
+* 같은 트랜잭션을 유지하기 위해선 커넥션을 파라미터로 넘겨야 한다.
+* 따라서, 같은 기능도 트랜잭션을 사용하는 메서드와, 사용하지 않는 메서드를 중복해 생성해야 한다.
+* 트랜잭션 적용 코드를 보면 반복이 많다. (try, catch, finally ..)
 
 
+**트랜잭션 매니저**
+* 트랜잭션 매니저: JDBC 및 JPA 구현 기술 등등의 다양한 구현 기술을 통일한 인터페이스
+* 위와 같은 문제를 해결하기 위해 스프링에서는 `PlatformTransactionManager`라는 인터페이스를 제공한다.
+* 해당 인터페이스는 TransactionManager의 최상위 인터페이스로, 원하는 TransactionManager 구현체를 DI를 통해 주입해 사용한다.
+* TransactionManager 구현체로 JDBC는 DataSourceTransactionManager, JPA는 JpaTransactionManager가 있다.
+```java
+public interface PlatformTransactionManager extends TransactionManager {
+  TransactionStatus getTransaction(@Nullable TransactionDefinition definition) throws TransactionException; //  트랜잭션을 시작
+  void commit(TransactionStatus status) throws TransactionException;
+  void rollback(TransactionStatus status) throws TransactionException;
+}
+```
 
+**트랜잭션 동기화 매니저**
+* 스레드 로컬을 사용해서 멀티 스레드 환경에서도 안전하게 커넥션을 동기화하여 커넥션을 보관하고 관리해준다.
+* 트랜잭션 동기화 매니저 동작 방식
+1. 트랜잭션을 시작하려면 커넥션이 필요하다. 트랜잭션 매니저는 데이터소스를 통해 커넥션을 만들고 트랜잭션을 시작한다.
+2. 트랜잭션 매니저는 트랜잭션이 시작된 커넥션을 트랜잭션 동기화 매니저에 보관한다.
+3. 리포지토리는 트랜잭션 동기화 매니저에 보관된 커넥션을 꺼내서 사용한다. 따라서 파라미터로 커넥션을
+전달하지 않아도 된다.
+4. 트랜잭션이 종료되면, 트랜잭션 매니저는 트랜잭션 동기화 매니저에 보관된 커넥션을 통해 트랜잭션을 종료하고, 커넥션도 닫는다.
 
 
 
