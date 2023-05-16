@@ -123,7 +123,7 @@ public class MemberRepositoryV3 {
         JdbcUtils.closeStatement(stmt);
 
         // 주의! 트랜잭션 동기화를 사용하려면 DataSourceUtils를 사용해야 한다.
-        // - 트랜잭션 매니저가 관리하는 커넥션이 있으면 해당 커넥션 반환
+        // - 트랜잭션 동기화 매니저가 관리하는 커넥션이 있으면 해당 커넥션 반환
         // - 없으면 해당 커넥션을 닫는다.
         DataSourceUtils.releaseConnection(con, dataSource);
     }
@@ -134,7 +134,7 @@ public class MemberRepositoryV3 {
      * - 없으면, 새로운 커넥션 생성해 반환
      */
     private Connection getConnection() throws SQLException {
-        // 주의! 트랜잭션 동기
+        // 주의! 트랜잭션 동기화
         Connection con = DataSourceUtils.getConnection(dataSource);
         log.info("get connection={}, class={}", con, con.getClass());
         return con;
