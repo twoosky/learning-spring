@@ -312,6 +312,155 @@ public interface PlatformTransactionManager extends TransactionManager {
 전달하지 않아도 된다.
 4. 트랜잭션이 종료되면, 트랜잭션 매니저는 트랜잭션 동기화 매니저에 보관된 커넥션을 통해 트랜잭션을 종료하고, 커넥션도 닫는다.
 
+**트랜잭션 템플릿**
+* 아래와 같이 트랜잭션을 시작하고 비즈니스 로직을 실행하고 성공하면 커밋하고 예외가 발생해서 실패하면 롤백하는 과정이 반복된다.
+* 반복되는 코드를 제거하기 위해 템플릿 콜백 패턴인 `트랜잭션 템플릿`을 활용한다.
+```java
+TransactionStatus status = transactionManager.getTransaction(new DefaultTransactionDefinition());
+
+try {
+    bizLogic(fromId, toId, money);  // 비즈니스 로직
+    transactionManager.commit(status);  // 성공시 트랜잭션 커밋
+} catch (Exception e) {
+    transactionManager.rollback(status);  // 실패시 트랜잭션 롤백
+    throw new IllegalStateException(e);
+}
+```
+
+TransactionTemplate
+```java
+public class TransactionTemplate {
+    private PlatformTransactionManager transactionManager;
+    public <T> T execute(TransactionCallback<T> action){..} // 응답 값이 있을 때 사용
+    void executeWithoutResult(Consumer<TransactionStatus> action){..} // 응답 값이 없을 때 사용
+}
+```
+반복되는 코드를 TransactionTemplate을 통해 리팩토링
+```java
+TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
+
+txTemplate.executeWithoutResult((status) -> {
+    try {
+        bizLogic(fromId, toId, money);
+    } catch (SQLException e) {
+        throw new IllegalStateException(e);
+    }
+});
+```
+* 트랜잭션 템플릿 문제점
+  * 트랜잭션을 사용할 때 반복하는 코드를 제거할 수 있지만, 서비스 계층에서 트랜잭션을 처리하는 로직이 필요하다.
+  * 서비스 입장에서 비즈니스 로직은 핵심 기능이고, 트랜잭션은 부가 기능이다.
+  * 두 관심사를 하나의 클래스에서 처리하게 되면, 유지보수가 어렵다.
+  * 즉, 트랜잭션 처리를 위해선 애플리케이션 코드 자체를 수정해야 한다.
+
+## 트랜잭션 AOP
+* 트랜잭션 매니저 및 트랜잭션 템플릿을 통합하여 프록시 기반와 스프링 AOP를 기반으로 제공하는 `@Transactional`을 사용하면 스프링이 트랜잭션을 편리하게 처리
+* `@Transactional` 애노테이션은 메서드에 붙이면 해당 메서드만 AOP의 대상이 되고 클래스에 붙이면 외부에서 호출 가능한 public 메서드가 AOP 적용 대상이 된다.
+* 어드바이저: BeanFactoryTransactionAttributeSourceAdvisor
+* 포인트컷: TransactionAttributeSourcePointcut
+* 어드바이스: TransactionInterceptor
+```java
+@RequiredArgsConstructor
+public class MemberServiceV3_3 {
+
+  private final MemberRepositoryV3 memberRepository;
+  
+  @Transactional
+  public void accountTransfer(String fromId, String toId, int money) throws SQLException {
+      bizLogic(fromId, toId, money);
+  }
+  ...
+}
+```
+**테스트**
+```java
+@Slf4j
+@SpringBootTest
+class MemberServiceV3_3Test {
+
+    @Autowired
+    private MemberRepositoryV3 memberRepository;
+    @Autowired
+    private MemberServiceV3_3 memberService;
+
+    /**
+     * @Transactional AOP를 제공하기 위해선
+     * - DataSource, PlatformTransactionManager가 모두 필요하므로 빈으로 등록해야 한다.
+     */
+    @TestConfiguration
+    static class TestConfig {
+        @Bean
+        public DataSource dataSource() {
+            return new DriverManagerDataSource(URL, USERNAME, PASSWORD);
+        }
+
+        @Bean
+        public PlatformTransactionManager transactionManager() {
+            return new DataSourceTransactionManager(dataSource());
+        }
+
+        @Bean
+        public MemberRepositoryV3 memberRepositoryV3() {
+            return new MemberRepositoryV3(dataSource());
+        }
+
+        @Bean
+        public MemberServiceV3_3 memberServiceV3_3() {
+            return new MemberServiceV3_3(memberRepositoryV3());
+        }
+    }
+    
+   
+    @Test
+    // ...
+}
+```
+* `SpringBootTest`
+  * **스프링 AOP를 적용하려면 스프링 컨테이너가 필요하다.** 해당 어노테이션이 있으면 테스트시 스프링 부트를 통해 스프링 컨테이너를 생성한다.
+  * 그리고 테스트에서 @Autowired 등을 통해 스프링 컨테이너가 관리하는 빈들을 사용할 수 있다.
+  * SpringBootTest 어노테이션이 없으면, 테스트 시 트랜잭션이 적용되지 않는다.
+* `@TestConfiguration`
+  * 해당 어노테이션을 통해 테스트 안에서 사용할 내부 설정 클래스를 정의할 수 있다.
+  * 스프링 부트가 자동으로 만들어주는 빈들에 추가로 필요한 스프링 빈들을 등록하고 테스트를 수행할 수 있다.
+
+**트랜잭션 AOP 전체 흐름**
+
+<img src="https://github.com/twoosky/spring-study/assets/50009240/fb9e56e9-9832-4f46-a2e8-b34bc45e8705" width="700" height="350">
+
+**스프링 부트의 자동 리소스 등록**
+* 스프링 부트가 등장하기 전에는 데이터소스와 트랜잭션 매니저를 개발자가 직접 스프링 빈으로 등록해 사용
+* 스프링 부트는 아래와 같이 `application.properties` 에 있는 속성을 사용해 DataSource를 생성하고, 스프링 빈에 등록한다.
+* 스프링 부트는 적절한 트랜잭션 매니저(PlatformTransactionManager)를 자동으로 스프링 빈에 등록
+```
+spring.datasource.url=jdbc:h2:tcp://localhost/~/test
+spring.datasource.username=sa
+spring.datasource.password=
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
