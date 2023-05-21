@@ -469,7 +469,58 @@ spring.datasource.password=
 * 장점: 신경쓰고 싶지 않은 언체크 예외를 무시할 수 있으므로, 예외와 의존관계가 생기지 않는다.
 * 단점: 언체크 예외는 개발자가 실수로 예외를 누락할 수 있다.
 
+예외 포함과 스택트레이스
 
+예외를 전환할 때는 반드시 기존 예외를 포함해야함
+```java
+try {
+  runSQL();
+} catch (SQLException e) {
+  throw new RuntimeSQLException(e); // 기존 예외(e) 포함 
+}
+스프링과 예외 문제 해결
+체크 예외 의존 제거를 위한 란타임 예외
+서비스가 처리할 수 없으므로 SQLException같은 체크 예외를 런타임 예외로 전환해서 서비스 계층에 던져서 체크 예외에 대한 의존을 제거할 수 있음
+public class MyDbException extends RuntimeException {
+    public MyDbException() {}
+    public MyDbException(String message) {
+        super(message);
+    }
+    public MyDbException(String message, Throwable cause) {
+        super(message, cause);
+    }
+    public MyDbException(Throwable cause) {
+        super(cause);
+    }
+}
+public Member findById(String memberId) {
+  String sql = "select * from member where member_id = ?";
+  Connection con = null;
+  PreparedStatement pstmt = null;
+  ResultSet rs = null;
+  
+  try {
+    con = getConnection();
+    pstmt = con.prepareStatement(sql); 
+    pstmt.setString(1, memberId);
+
+    rs = pstmt.executeQuery();
+
+    if (rs.next()) {
+      Member member = new Member(); 
+      member.setMemberId(rs.getString("member_id")); 
+      member.setMoney(rs.getInt("money"));
+      return member;  
+    } else {
+          throw new NoSuchElementException("member not found memberId=" +  memberId);
+    }
+    } catch (SQLException e) {
+      throw new MyDbException(e); // SQLException를 감싸고 언체크 예외로 변환
+    } finally {
+      close(con, pstmt, rs);
+    }
+}
+```
 
 
 
