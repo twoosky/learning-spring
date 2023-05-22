@@ -4,7 +4,7 @@
 # JDBC
 **JDBC 등장 배경**  
 * 애플리케이션 서버와 DB 연결 과정
-<img src="https://user-images.githubusercontent.com/50009240/232737044-7d2f9469-465e-4204-8024-b19e39fd1424.png" width="400" height="100">
+<img src="https://user-images.githubusercontent.com/50009240/232737044-7d2f9469-465e-4204-8024-b19e39fd1424.png" width="430" height="100">
 
 1. 커넥션 연결: 주로 TCP/IP를 사용해 애플리케이션 서버와 DB서버가 연결된다.
 2. SQL 전달: 애플리케이션 서버는 SQL을 연결된 커넥션을 통해 DB에 전달한다.
@@ -425,7 +425,7 @@ class MemberServiceV3_3Test {
 
 **트랜잭션 AOP 전체 흐름**
 
-<img src="https://github.com/twoosky/spring-study/assets/50009240/fb9e56e9-9832-4f46-a2e8-b34bc45e8705" width="700" height="370">
+<img src="https://github.com/twoosky/spring-study/assets/50009240/fb9e56e9-9832-4f46-a2e8-b34bc45e8705" width="750" height="400">
 
 **스프링 부트의 자동 리소스 등록**
 * 스프링 부트가 등장하기 전에는 데이터소스와 트랜잭션 매니저를 개발자가 직접 스프링 빈으로 등록해 사용
@@ -445,7 +445,7 @@ spring.datasource.password=
 * `Exception`: **체크 예외**, 애플리케이션 로직에서 사용할 수 있는 실질적인 최상위 예외로 RuntimeException을 제외한 Exception과 Exception의 자식들은 모두 체크 예외 (컴파일러가 체크하는 예외)
 * `RuntimeException`: **언체크 예외**, 런타임 예외로 RuntimeException과 그 자식 예외는 모두 언체크 예외 (컴파일러가 체크하지 않는 예외)
 
-<img src="https://github.com/twoosky/spring-study/assets/50009240/a67707a8-7301-47b0-be75-4d0de2619ac3" width="650" height="360">
+<img src="https://github.com/twoosky/spring-study/assets/50009240/a67707a8-7301-47b0-be75-4d0de2619ac3" width="700" height="400">
 
 **예외 기본 규칙**
 1. 예외는 잡아서 처리하거나 던져야 한다.
@@ -469,76 +469,177 @@ spring.datasource.password=
 * 장점: 신경쓰고 싶지 않은 언체크 예외를 무시할 수 있으므로, 예외와 의존관계가 생기지 않는다.
 * 단점: 언체크 예외는 개발자가 실수로 예외를 누락할 수 있다.
 
-예외 포함과 스택트레이스
-
-예외를 전환할 때는 반드시 기존 예외를 포함해야함
+**예외 포함과 스택트레이스**
+* 예외를 전환할 때는 반드시 기존 예외를 포함해야함
+* 그래야 예외의 원인을 파악할 수 있다.
 ```java
 try {
   runSQL();
 } catch (SQLException e) {
   throw new RuntimeSQLException(e); // 기존 예외(e) 포함 
 }
-스프링과 예외 문제 해결
-체크 예외 의존 제거를 위한 란타임 예외
-서비스가 처리할 수 없으므로 SQLException같은 체크 예외를 런타임 예외로 전환해서 서비스 계층에 던져서 체크 예외에 대한 의존을 제거할 수 있음
+```
+
+## 스프링과 예외 문제 해결
+**예외 누수 문제점**
+* 체크 예외를 throw로 계속 던지면, 서비스 계층까지 체크 예외가 누수된다.
+* 이 경우 서비스 계층은 특정 데이터 접근 기술에 종속된 예외에 의존하게 된다.
+  * ex) SQLException은 JDBC 기술에 종속된 예외이다. 
+
+**예외 누수 문제 해결방법**
+* 체크 예외를 언체크 예외로 변환해 던짐으로써 서비스 계층에서 체크 예외에 대한 의존을 제거할 수 있다.
+```java
 public class MyDbException extends RuntimeException {
-    public MyDbException() {}
+    public MyDbException() {
+    }
+
     public MyDbException(String message) {
         super(message);
     }
-    public MyDbException(String message, Throwable cause) {
-        super(message, cause);
-    }
+
     public MyDbException(Throwable cause) {
         super(cause);
     }
 }
-public Member findById(String memberId) {
-  String sql = "select * from member where member_id = ?";
-  Connection con = null;
-  PreparedStatement pstmt = null;
-  ResultSet rs = null;
-  
-  try {
-    con = getConnection();
-    pstmt = con.prepareStatement(sql); 
-    pstmt.setString(1, memberId);
+```
+```java
+try {
+    // DB 쿼리 실행
+catch (SQLException e) {
+    throw new MyDbException(e);
+}
+```
 
-    rs = pstmt.executeQuery();
-
-    if (rs.next()) {
-      Member member = new Member(); 
-      member.setMemberId(rs.getString("member_id")); 
-      member.setMoney(rs.getInt("money"));
-      return member;  
-    } else {
-          throw new NoSuchElementException("member not found memberId=" +  memberId);
+**복구 가능한 체크 예외인 경우**
+* 회원 가입 시 이미 같은 ID가 있으면, ID 뒤에 숫자를 붙여 새로운 ID를 만든다고 가정해보자.
+* 데이터를 저장할 때 이미 존재하는 ID라면, 데이터베이스는 예외를 반환한다.
+* 하지만, 위와 같이 체크 예외를 모두 MyDbException으로 변환해 던지는 경우 ID 중복 오류인지 구분할 수 없다.
+* 해결 방법: 키 중복인 경우에만 체크 예외를 MyDuplicateKeyException과 같은 언체크 예외로 변환해 던지면 된다.
+```java
+public class MyDuplicateKeyException extends MyDbException {
+    public MyDuplicateKeyException() {
     }
+
+    public MyDuplicateKeyException(String message) {
+        super(message);
+    }
+
+    public MyDuplicateKeyException(Throwable cause) {
+        super(cause);
+    }
+}
+```
+* Repository
+```java
+try {
+    // DB 쿼리 실행
+} catch (SQLException e) {
+    // h2 키 중복 오류 코드 23505
+    if(e.getErrorCode() == 23505) {
+        throw new MyDuplicateKeyException(e);
+    }
+    throw new MyDbException(e);
+}
+```
+* Service
+```java
+public void create(String memberId) {
+    try {
+        repository.save(new Member(memberId, 0));
+    } catch (MyDuplicateKeyException e) {
+        String retryId = generateNewId(memberId);  // 키 중복, 복구 시도
+        repository.save(new Member(retryId, 0));
+    } catch (MyDbException e) {
+        throw e;
+    }
+}
+```
+문제점: 데이터베이스마다 오류 코드가 모두 다르다.
+
+# 스프링 예외 추상화
+* 스프링은 앞서 설명한 문제들을 해결하기 위해 데이터 접근과 관련된 예외를 추상화해서 제공
+* Transient는 일시적이라는 뜻으로, Transient 하위 예외를 동일한 SQL을 다시 시도했을 때 성공할 가능성이 있음
+* NonTransient는 일시적이지 않다는 뜻으로, 같은 SQL을 그대로 반복해서 실행하면 실패
+
+<img src="https://github.com/twoosky/spring-study/assets/50009240/54e869c0-5733-46ce-ba4c-22ad098e011e" width="600" height="400">
+
+
+**스프링 예외 변환기**
+* SQLExceptionTranslator인 스프링 예외 변환기는 각 DB의 ErrorCode를 스프링이 정의한 예외로 자동 변환해준다.
+* `sql-error-codes.xml`에 RDBMS 별로 에러 코드가 저장되어 있고, 이를 통해 예외 변환
+* 예시) 잘못된 sql 실행 시 BadSqlGrammarException 으로 예외 변환
+```java
+@Test
+void sqlExceptionErrorCode() {
+    String sql = "select bad grammer";
+
+    try {
+        Connection con = dataSource.getConnection();
+        PreparedStatement stmt = con.prepareStatement(sql);
+        stmt.executeQuery();
     } catch (SQLException e) {
-      throw new MyDbException(e); // SQLException를 감싸고 언체크 예외로 변환
-    } finally {
-      close(con, pstmt, rs);
+        Assertions.assertThat(e.getErrorCode()).isEqualTo(42122);
+
+        SQLErrorCodeSQLExceptionTranslator exTranslator = new SQLErrorCodeSQLExceptionTranslator(dataSource);
+        DataAccessException resultEx = exTranslator.translate("insert", sql, e);
+        log.info("resultEx", resultEx);
+        Assertions.assertThat(resultEx.getClass()).isEqualTo(BadSqlGrammarException.class);
     }
 }
 ```
 
+<details>
+<summary>sql-error-codes.xml 맛보기</summary>
+<div markdown="1">
+    
+아래와 같이 sql-error-codes.xml에 errorCode에 대한 예외가 정의되어 있다.
+<img src="https://github.com/twoosky/spring-study/assets/50009240/80d744c1-e70b-4f4a-845a-362797c04ec3" width="700" height="100">
 
+<img src="https://github.com/twoosky/spring-study/assets/50009240/e7666b86-5606-40f2-936e-17de3b5bcae4" width="700" height="220">
 
+</div>
+</details>
 
+**Jdbc 반복 문제 해결 - JdbcTemplate**
+* Repository에서 JDBC로 개발할 때 발생하는 JDBC 반복 문제를 해결하기 위해 JdbcTemplate 사용
+* JdbcTemplate은 JDBC 반복 해결뿐만 아니라, `트랜잭션을 위한 커넥션 동기화`, `스프링 예외 변환기`도 자동으로 실행해준다.
+```java
+@Slf4j
+public class MemberRepositoryV5 implements MemberRepository {
 
+    private final JdbcTemplate template;
 
+    public MemberRepositoryV5(DataSource dataSource) {
+        this.template = new JdbcTemplate(dataSource);
+    }
 
+    @Override
+    public Member save(Member member) {
+        String sql = "insert into member(member_id, money) values(?, ?)";
+        template.update(sql, member.getMemberId(), member.getMoney());
+        return member;
+    }
 
+    @Override
+    public Member findById(String memberId) {
+        String sql = "select * from member where member_id = ?";
+        return template.queryForObject(sql, memberRowMapper(), memberId);
+    }
 
-
-
-
-
-
-
-
-
-
-
-
+    private RowMapper<Member> memberRowMapper() {
+        return (rs, rowNum) -> {
+            Member member = new Member();
+            member.setMemberId(rs.getString("member_id"));
+            member.setMoney(rs.getInt("money"));
+            return member;
+        };
+    }
+}
+```
+* JDBC 반복 코드
+  * 커넥션 조회, 커넥션 동기화
+  * PreparedStatement 생성 및 파라미터 바인딩 쿼리 실행
+  * 결과 바인딩
+  * 예외 발생시 스프링 예외 변환기 실행
+  * 리소스 종료
 
