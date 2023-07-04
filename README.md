@@ -1,4 +1,4 @@
-# spring-study
+# learning-spring
 :octocat: Spring 관련 실습 코드, 정리 문서를 모아놓은 저장소입니다  
 
 ## Spring
